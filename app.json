@@ -1,0 +1,49 @@
+{
+  "expo": {
+    "name": "Brilliant Coaching Centre",
+    "slug": "bcc-portal",
+    "version": "1.1.0",
+    "orientation": "default",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#F9EC00",
+    "splash": {
+      "image": "./assets/splash-blank.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#F9EC00"
+    },
+    "android": {
+      "package": "in.bcc.portal",
+      "versionCode": 2,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#F9EC00"
+      },
+      "softwareKeyboardLayoutMode": "resize",
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE"
+      ]
+    },
+    "plugins": [
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-blank.png",
+          "backgroundColor": "#F9EC00",
+          "imageWidth": 100,
+          "resizeMode": "contain"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "BCC needs photo access to upload profile photos.",
+          "cameraPermission": "BCC needs the camera to take profile photos."
+        }
+      ],
+      "expo-video",
+      "expo-screen-orientation"
+    ]
+  }
+}
