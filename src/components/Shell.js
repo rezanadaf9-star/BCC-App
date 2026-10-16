@@ -42,7 +42,7 @@ export default function Shell() {
   const moreItems = isStudent
     ? STUDENT_MORE
     : [['students', 'users', 'Students'], ['content', 'cloud-arrow-up', 'Content'], ['quiz-manager', 'list-check', 'Quiz Manager'],
-       ['marks', 'chart-column', 'Marks'], ['leaderboard', 'ranking-star', 'Leaderboard'], ...(isAdmin ? [['teachers', 'chalkboard-user', 'Teachers']] : [])];
+       ['lecture-discussions', 'comments', 'Discussions'], ['marks', 'chart-column', 'Marks'], ['leaderboard', 'ranking-star', 'Leaderboard'], ...(isAdmin ? [['teachers', 'chalkboard-user', 'Teachers']] : [])];
   const activeTab = meta.tab || nav.current.name;
   const title = meta.title || '';
   const canBack = !!meta.detail && nav.stack.length > 1;

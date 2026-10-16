@@ -9,6 +9,7 @@ import { Students } from './admin/Students';
 import { Teachers } from './admin/Teachers';
 import { Content } from './admin/Content';
 import { QuizManager } from './admin/QuizManager';
+import { LectureDiscussions, LectureDiscussion } from './admin/Discussions';
 import { Marks, MarksClass, AcademicLeaderboardExam } from './admin/Marks';
 import { AdminLeaderboard, AdminLeaderboardClass } from './admin/Leaderboard';
 import { useApp } from '../lib/app';
@@ -47,6 +48,8 @@ export const SCREENS = {
   students: { component: Students, title: 'Students' },
   teachers: { component: Teachers, title: 'Teachers', tab: 'more' },
   content: { component: Content, title: 'Content' },
+  'lecture-discussions': { component: LectureDiscussions, title: 'Discussions', tab: 'more' },
+  'lecture-discussion': { detail: true, component: LectureDiscussion, title: 'Discussion', tab: 'more' },
   'quiz-manager': { component: QuizManager, title: 'Quiz Manager' },
   marks: { component: Marks, title: 'Marks', tab: 'more' },
   'marks-class': { detail: true, component: MarksClass, title: 'Class marks', tab: 'more' },

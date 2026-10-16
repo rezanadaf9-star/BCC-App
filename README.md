@@ -30,3 +30,8 @@ Colours/theme: `src/theme.js`. Logo used in login + side menu: `assets/logo.png`
 - Student top-left = profile photo (opens profile); teacher top-left = logo.png.
 - Lectures stay inside the app (navigation to YouTube is blocked).
 - New dependency: expo-linear-gradient (installed automatically by the GitHub build).
+
+## v1.3 notes
+- Lecture discussion: classmates see each other's comments; Reply button (threads); teachers/admin get a "Discussions" screen
+  (More menu / dashboard) to reply and delete. Run `supabase/APP_FEATURES_2_REPLIES.sql` once (after APP_FEATURES.sql).
+- Podium: photo + crown centred. List ranks are by position (4th, 5th, ...).

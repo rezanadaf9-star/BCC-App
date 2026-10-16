@@ -262,8 +262,8 @@ export function Podium({ rows, currentId, academic, admin }) {
         const overlap = d.av * 0.5;
         return (
           <View key={r.student_id || i} style={s.podCol}>
-            <Image source={require('../../assets/crown.png')} style={{ width: d.crown * 1.3, height: d.crown, marginBottom: 2, zIndex: 3 }} resizeMode="contain" />
-            <View style={{ zIndex: 3, elevation: 4, marginBottom: -overlap }}>
+            <Image source={require('../../assets/crown.png')} style={{ alignSelf: 'center', width: d.crown * 1.3, height: d.crown, marginBottom: -3, zIndex: 3 }} resizeMode="contain" />
+            <View style={{ alignSelf: 'center', zIndex: 3, elevation: 4, marginBottom: -overlap }}>
               <View style={{ width: d.av + 8, height: d.av + 8, borderRadius: (d.av + 8) / 2, backgroundColor: GOLD_RING, alignItems: 'center', justifyContent: 'center' }}>
                 <Avatar uri={r.photo_url} name={r.full_name} size={d.av} />
               </View>
@@ -289,24 +289,25 @@ export function Podium({ rows, currentId, academic, admin }) {
 
 export function RankList({ rows, currentId, academic, admin }) {
   const all = rows || [];
+  const at = (r, i) => ({ r, pos: i + 4 });
   let visible;
-  if (admin) visible = all.slice(3);
+  if (admin) visible = all.slice(3).map(at);
   else {
     // positions 4..10; if the student is 11th or lower they replace the 10th row
-    visible = all.slice(3, 10);
+    visible = all.slice(3, 10).map(at);
     const meIdx = all.findIndex((r) => r.student_id === currentId);
-    if (meIdx >= 10) visible = [...all.slice(3, 9), all[meIdx]];
+    if (meIdx >= 10) visible = [...all.slice(3, 9).map(at), { r: all[meIdx], pos: meIdx + 1 }];
   }
   if (!visible.length) return null;
   return (
     <Card style={{ padding: 0, overflow: 'hidden', marginTop: 12 }}>
-      {visible.map((r, i) => {
+      {visible.map(({ r, pos }, i) => {
         const me = !admin && r.student_id === currentId;
         const score = academic ? `${r.total_score} / ${r.total_full_marks}` : `${r.score ?? r.total_score ?? 0} / ${r.total_marks ?? 0}`;
         const pct = r.percentage != null ? Number(r.percentage) : Number(r.total_marks) ? (Number(r.score ?? r.total_score ?? 0) / Number(r.total_marks)) * 100 : 0;
         return (
           <View key={r.student_id || i} style={[s.rankRow, me && { backgroundColor: C.accent }]}>
-            <Text style={s.rankNum}>{rankLabel(r.rank)}</Text>
+            <Text style={s.rankNum}>{rankLabel(pos)}</Text>
             <Avatar uri={r.photo_url} name={r.full_name} size={36} ring={me} />
             <View style={{ flex: 1 }}>
               <Text style={s.liTitle} numberOfLines={1}>{r.full_name || 'Student'}{me ? '  (You)' : ''}</Text>

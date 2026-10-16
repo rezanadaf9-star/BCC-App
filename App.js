@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { View } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
 import * as ScreenOrientation from 'expo-screen-orientation';
+import * as NavigationBar from 'expo-navigation-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import {
   useFonts, Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold, Poppins_700Bold,
@@ -14,6 +15,20 @@ import Shell from './src/components/Shell';
 import { C } from './src/theme';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
+
+/** Colours Android's system navigation bar (the strip under the app): yellow on splash, pale on login, navy inside the app. */
+function NavBarColor({ splashDone }) {
+  const { profile } = useApp();
+  useEffect(() => {
+    const inApp = splashDone && !!profile;
+    const bg = !splashDone ? C.splash : inApp ? C.primary : C.bg;
+    try {
+      NavigationBar.setBackgroundColorAsync(bg).catch(() => {});
+      NavigationBar.setButtonStyleAsync(inApp ? 'light' : 'dark').catch(() => {});
+    } catch (_) {}
+  }, [splashDone, profile?.id]);
+  return null;
+}
 
 function Root() {
   const { profile, booting, isStudent, isAdmin } = useApp();
@@ -48,6 +63,7 @@ export default function App() {
       <UiProvider>
         <AppProvider onReady={() => setSessionReady(true)}>
           <View style={{ flex: 1, backgroundColor: C.bg }} onLayout={onLayout}>
+            <NavBarColor splashDone={splashDone} />
             <Root />
             {!splashDone && <AnimatedSplash ready={sessionReady} onDone={() => setSplashDone(true)} />}
           </View>

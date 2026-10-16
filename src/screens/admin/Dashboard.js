@@ -31,6 +31,7 @@ export function StaffDashboard({ nav }) {
     ['users', 'Students', isAdmin ? 'Create accounts and view student information' : 'Review students in your assigned classes', 'students'],
     ['cloud-arrow-up', 'Content', 'Upload notes, homework and lectures', 'content'],
     ['list-check', 'Quiz Manager', 'Create and manage quizzes', 'quiz-manager'],
+    ['comments', 'Discussions', 'Reply to student doubts on lectures', 'lecture-discussions'],
     ['chart-column', 'Marks', 'Enter exam marks and declare results', 'marks'],
     ['ranking-star', 'Leaderboard', 'Class quiz rankings and monitoring', 'leaderboard'],
     ...(isAdmin ? [['chalkboard-user', 'Teachers', 'Create teacher accounts and manage access', 'teachers']] : []),

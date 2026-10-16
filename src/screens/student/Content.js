@@ -5,6 +5,7 @@ import * as ScreenOrientation from 'expo-screen-orientation';
 import { WebView } from 'react-native-webview';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { Async, Avatar, Btn, Card, Empty, Head, Icon, ListItem, Loading, Page, Pill, Row, Sheet, Label } from '../../components/ui';
+import Discussion from '../../components/Discussion';
 import { useApp, useUi } from '../../lib/app';
 import { sb } from '../../lib/supabase';
 import { downloadAndShare, fmtDate, fmtDateTime, isMissingTable, signedUrl, timeAgo, useAsync, youtubeId } from '../../lib/helpers';
@@ -90,69 +91,6 @@ export function LecturesSubject({ params, nav }) {
 function FileVideo({ url }) {
   const player = useVideoPlayer(url, (p) => { p.loop = false; });
   return <VideoView player={player} style={{ flex: 1 }} contentFit="contain" nativeControls />;
-}
-
-function LectureComments({ lectureId }) {
-  const { profile } = useApp();
-  const { toast } = useUi();
-  const [text, setText] = useState('');
-  const [sending, setSending] = useState(false);
-  const q = useAsync(async () => {
-    const { data, error } = await sb.from('lecture_comments').select('id,user_id,author_name,author_role,body,created_at').eq('lecture_id', lectureId).order('created_at', { ascending: false }).limit(100);
-    if (error) { if (isMissingTable(error)) return { missing: true, rows: [] }; throw error; }
-    return { missing: false, rows: data || [] };
-  }, [lectureId]);
-
-  const send = async () => {
-    const body = text.trim();
-    if (!body) return;
-    setSending(true);
-    try {
-      const { error } = await sb.from('lecture_comments').insert({ lecture_id: lectureId, user_id: profile.id, body });
-      if (error) throw error;
-      setText(''); q.reload();
-    } catch (e) { toast(e.message || 'Could not post your comment.', 'error'); } finally { setSending(false); }
-  };
-  const remove = (c) => Alert.alert('Delete comment?', '', [{ text: 'Cancel', style: 'cancel' }, { text: 'Delete', style: 'destructive', onPress: async () => {
-    const { error } = await sb.from('lecture_comments').delete().eq('id', c.id);
-    if (error) return toast(error.message, 'error');
-    q.reload();
-  } }]);
-
-  const rows = q.data?.rows || [];
-  return (
-    <View style={{ marginTop: 18 }}>
-      <View style={st.cHead}><Icon name="comments" size={15} /><Text style={st.cTitle}>Discussion</Text><Pill text={String(rows.length)} /></View>
-      {q.data?.missing ? (
-        <Card><Text style={st.muted}>Comments are not enabled yet. Ask your teacher.</Text></Card>
-      ) : (
-        <>
-          <View style={st.cBox}>
-            <TextInput value={text} onChangeText={setText} placeholder="Ask a doubt or share your thoughts…" placeholderTextColor="#8a8a8a" multiline maxLength={500} style={st.cInput} />
-            <Pressable onPress={send} disabled={sending || !text.trim()} style={[st.send, (!text.trim() || sending) && { opacity: 0.4 }]}>
-              <Icon name="paper-plane" size={14} color={C.accent} />
-            </Pressable>
-          </View>
-          {q.loading && !q.data ? <Loading /> : rows.length === 0 ? (
-            <Text style={[st.muted, { textAlign: 'center', marginTop: 12 }]}>No comments yet. Be the first to comment.</Text>
-          ) : rows.map((c) => (
-            <View key={c.id} style={st.cRow}>
-              <Avatar name={c.author_name} size={34} />
-              <View style={{ flex: 1 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                  <Text style={st.cName}>{c.author_name || 'Student'}</Text>
-                  {c.author_role && c.author_role !== 'student' && <Pill active text="Teacher" />}
-                  <Text style={st.cTime}>{timeAgo(c.created_at)}</Text>
-                </View>
-                <Text style={st.cBody}>{c.body}</Text>
-              </View>
-              {c.user_id === profile.id && <Pressable hitSlop={10} onPress={() => remove(c)}><Icon name="trash" size={13} color={C.grey} /></Pressable>}
-            </View>
-          ))}
-        </>
-      )}
-    </View>
-  );
 }
 
 export function LecturePlayer({ params, nav }) {
@@ -251,7 +189,7 @@ export function LecturePlayer({ params, nav }) {
               {x.downloadable && x.file_path && (
                 <Btn kind="yellow" icon="download" label="Download lecture" style={{ marginTop: 12 }} onPress={() => downloadAndShare(x.file_path, x.title).catch((e) => toast(e.message, 'error'))} />
               )}
-              <LectureComments lectureId={x.id} />
+              <Discussion lectureId={x.id} />
             </>
           )}
         </Page>
