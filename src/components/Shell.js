@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { Avatar, Btn, Icon, Sheet, Label, TitleCtx } from './ui';
 import BrandLockup from './BrandLockup';
-import { BellButton, useMyPhoto } from './HomeHeader';
+import { BellButton, ProfileCtx, useMyPhoto } from './HomeHeader';
 import { useApp, useNav, useUi } from '../lib/app';
 import { useNotif } from '../lib/notifications';
 import { sb } from '../lib/supabase';
@@ -22,6 +22,7 @@ const staffTabs = (home) => [
   [home, 'house', 'Home'], ['students', 'users', 'Students'], ['content', 'cloud-arrow-up', 'Content'], ['quiz-manager', 'list-check', 'Quizzes'], ['more', 'bars', 'More'],
 ];
 const STUDENT_MORE = [
+  ['lectures', 'video', 'Lectures'], ['notes', 'note-sticky', 'Notes'], ['homework', 'book-open', 'Homework'],
   ['quizzes', 'circle-question', 'Quizzes'], ['notebooklm', 'wand-magic-sparkles', 'AI Study Hub'], ['student-marks', 'file-signature', 'Marks'],
   ['leaderboard', 'ranking-star', 'Leaderboard'], ['notifications', 'bell', 'Notifications'],
 ];
@@ -40,23 +41,27 @@ export default function Shell() {
   const tabs = isStudent ? STUDENT_TABS : staffTabs(home);
   const moreItems = isStudent
     ? STUDENT_MORE
-    : [['marks', 'chart-column', 'Marks'], ['leaderboard', 'ranking-star', 'Leaderboard'], ...(isAdmin ? [['teachers', 'chalkboard-user', 'Teachers']] : [])];
+    : [['students', 'users', 'Students'], ['content', 'cloud-arrow-up', 'Content'], ['quiz-manager', 'list-check', 'Quiz Manager'],
+       ['marks', 'chart-column', 'Marks'], ['leaderboard', 'ranking-star', 'Leaderboard'], ...(isAdmin ? [['teachers', 'chalkboard-user', 'Teachers']] : [])];
   const activeTab = meta.tab || nav.current.name;
   const title = meta.title || '';
-  const canBack = nav.stack.length > 1;
+  const canBack = !!meta.detail && nav.stack.length > 1;
 
   const photo = useMyPhoto();
 
   return (
     <TitleCtx.Provider value={title}>
+     <ProfileCtx.Provider value={() => setProfileOpen(true)}>
       <View style={{ flex: 1, backgroundColor: C.bg, paddingTop: hideChrome ? 0 : insets.top }}>
         <StatusBar hidden={nav.immersive} barStyle="dark-content" backgroundColor={C.bg} />
         {!hideChrome && !meta.home && (
           <View style={st.top}>
             {canBack ? (
               <Pressable style={st.circ} onPress={() => nav.pop()} hitSlop={6}><Icon name="chevron-left" size={15} /></Pressable>
+            ) : isStudent ? (
+              <Pressable onPress={() => setProfileOpen(true)} hitSlop={6}><Avatar uri={photo} name={profile?.full_name} size={44} ring /></Pressable>
             ) : (
-              <View style={st.circ}><Image source={require('../../assets/shield.png')} style={{ width: 22, height: 24 }} resizeMode="contain" /></View>
+              <View style={st.circ}><Image source={require('../../assets/logo.png')} style={{ width: 38, height: 38 }} resizeMode="contain" /></View>
             )}
             <Text style={st.topTitle} numberOfLines={1}>{title}</Text>
             {isStudent ? (
@@ -69,12 +74,13 @@ export default function Shell() {
         <View style={{ flex: 1 }}>
           <Screen params={nav.current.params} nav={nav} key={nav.current.key} />
         </View>
-        {!hideChrome && <BottomNav tabs={tabs} active={activeTab} nav={nav} insets={insets} moreActive={moreItems.some((m) => m[0] === activeTab) || activeTab === 'more'} />}
+        {!hideChrome && <BottomNav tabs={tabs} active={activeTab} nav={nav} insets={insets} moreActive={activeTab === 'more'} />}
         {!meta.fullscreen && (
-          <SideMenu open={nav.drawer} onClose={() => nav.setDrawer(false)} items={moreItems} active={activeTab} nav={nav} app={app} insets={insets} photo={photo} onProfile={() => { nav.setDrawer(false); setProfileOpen(true); }} />
+          <SideMenu open={nav.drawer} onClose={() => nav.setDrawer(false)} items={moreItems} active={activeTab !== 'more' ? activeTab : nav.current.name} nav={nav} app={app} insets={insets} photo={photo} onProfile={() => { nav.setDrawer(false); setProfileOpen(true); }} />
         )}
         <ProfileSheet visible={profileOpen} onClose={() => setProfileOpen(false)} photo={photo} />
       </View>
+     </ProfileCtx.Provider>
     </TitleCtx.Provider>
   );
 }
@@ -83,7 +89,7 @@ export default function Shell() {
 function BottomNav({ tabs, active, nav, insets, moreActive }) {
   const go = (key) => {
     if (key === 'more') return nav.setDrawer(true);
-    if (nav.current.name === key && nav.stack.length === 1) return;
+    if (nav.current.name === key) return;
     nav.reset(key);
   };
   return (
@@ -92,7 +98,8 @@ function BottomNav({ tabs, active, nav, insets, moreActive }) {
         const on = key === 'more' ? moreActive : key === active;
         return (
           <Pressable key={key} style={st.tab} onPress={() => go(key)} hitSlop={4}>
-            <View style={[st.tabIcon, on && { backgroundColor: C.accent }]}>
+            <View style={st.tabIcon}>
+              <View style={[st.pill, { opacity: on ? 1 : 0 }]} />
               <Icon name={icon} size={16} color={on ? C.primary : 'rgba(255,255,255,0.75)'} />
             </View>
             <Text style={[st.tabText, on && { color: C.accent, fontFamily: F.s }]}>{label}</Text>
@@ -121,7 +128,7 @@ function SideMenu({ open, onClose, items, active, nav, app, insets, photo, onPro
   const go = (name) => {
     onClose();
     if (name === 'notifications') return nav.current.name !== 'notifications' && nav.push('notifications');
-    if (nav.current.name === name && nav.stack.length === 1) return;
+    if (nav.current.name === name) return;
     nav.reset(name);
   };
   return (
@@ -194,7 +201,7 @@ function ProfileSheet({ visible, onClose, photo }) {
     } catch (e) { toast(e.message || 'Could not update profile photo.', 'error'); } finally { loading(false); }
   };
   return (
-    <Sheet visible={visible} onClose={onClose} title="My profile" compact>
+    <Sheet visible={visible} onClose={onClose} title="My profile">
       <View style={{ alignItems: 'center', marginBottom: 16 }}>
         <Avatar uri={photo} name={profile?.full_name} size={84} ring />
         <Text style={st.pName}>{profile?.full_name || 'BCCian'}</Text>
@@ -203,6 +210,13 @@ function ProfileSheet({ visible, onClose, photo }) {
           {isStudent ? `${classText(student?.class_no)} • Batch ${student?.batch || '—'}` : profile?.role === 'admin' ? 'Administrator' : 'Teacher'}
         </Label>
       </View>
+      {isStudent && (
+        <View style={st.info}>
+          {[['Student ID', profile?.login_id], ['Class', classText(student?.class_no)], ['Roll number', student?.roll_number], ['Batch', student?.batch], ['Phone', student?.phone]].map(([k, v]) => (
+            <View key={k} style={st.infoRow}><Text style={st.infoK}>{k}</Text><Text style={st.infoV}>{v || '—'}</Text></View>
+          ))}
+        </View>
+      )}
       {!isStudent && <Btn label={profile?.photo_path ? 'Replace profile photo' : 'Add profile photo'} icon="camera" kind="soft" full onPress={pick} style={{ marginBottom: 10 }} />}
       <Btn label="Logout" icon="right-from-bracket" kind="danger" full onPress={() => { onClose(); signOut(); }} />
     </Sheet>
@@ -215,7 +229,8 @@ const st = StyleSheet.create({
   topTitle: { flex: 1, textAlign: 'center', fontFamily: F.b, fontSize: 17, color: C.primary },
   nav: { flexDirection: 'row', backgroundColor: C.primary, borderTopLeftRadius: 26, borderTopRightRadius: 26, paddingTop: 8, paddingHorizontal: 6, ...shadow, shadowOpacity: 0.25, elevation: 12 },
   tab: { flex: 1, alignItems: 'center', gap: 3 },
-  tabIcon: { width: 46, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
+  tabIcon: { width: 52, height: 32, alignItems: 'center', justifyContent: 'center' },
+  pill: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, borderRadius: 16, backgroundColor: C.accent },
   tabText: { fontFamily: F.m, fontSize: 10.5, color: 'rgba(255,255,255,0.75)' },
   side: { position: 'absolute', right: 0, top: 0, bottom: 0, backgroundColor: C.white, borderTopLeftRadius: 26, borderBottomLeftRadius: 26, overflow: 'hidden' },
   sHead: { backgroundColor: C.primary, paddingHorizontal: 16, paddingBottom: 16, flexDirection: 'row', alignItems: 'center', gap: 12 },
@@ -228,6 +243,10 @@ const st = StyleSheet.create({
   pillBadge: { minWidth: 22, height: 22, borderRadius: 11, backgroundColor: C.alert, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
   pillBadgeText: { color: C.white, fontFamily: F.b, fontSize: 11 },
   loc: { fontFamily: F.r, fontSize: 10.5, color: C.grey, textAlign: 'center', marginTop: 12 },
+  info: { backgroundColor: C.bg, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 4, marginBottom: 14 },
+  infoRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 1, borderColor: C.line },
+  infoK: { fontFamily: F.r, fontSize: 12.5, color: C.grey },
+  infoV: { fontFamily: F.s, fontSize: 13, color: C.primary },
   pName: { fontFamily: F.b, fontSize: 18, color: C.primary, marginTop: 10 },
   pId: { fontFamily: F.m, fontSize: 12.5, color: C.grey },
 });

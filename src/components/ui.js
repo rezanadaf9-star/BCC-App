@@ -4,6 +4,7 @@ import {
   ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { FontAwesome6 } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { C, F, R, shadow } from '../theme';
 import { initials, rankLabel, num } from '../lib/helpers';
 
@@ -102,7 +103,7 @@ export function Avatar({ uri, name, size = 44, ring }) {
   const [failed, setFailed] = useState(false);
   const base = { width: size, height: size, borderRadius: size / 2 };
   return (
-    <View style={[base, s.avatar, ring && { borderWidth: 2.5, borderColor: C.accent }]}>
+    <View style={[base, s.avatar, ring && { borderWidth: 2.5, borderColor: C.primary }]}>
       {uri && !failed ? (
         <Image source={{ uri }} style={base} onError={() => setFailed(true)} />
       ) : (
@@ -239,29 +240,46 @@ export const YouBadge = () => (
 );
 
 /* ------------- Podium + ranked list (quiz & academic) ------------- */
+// 1st = centre & tallest (gold), 2nd = left (silver), 3rd = right & shortest (bronze)
+const POD = {
+  0: { h: 222, colors: ['#F8E07A', '#DDB033'], av: 74, crown: 40 },
+  1: { h: 186, colors: ['#CFD7E2', '#96A3B7'], av: 62, crown: 32 },
+  2: { h: 158, colors: ['#DAA971', '#AE6F37'], av: 62, crown: 32 },
+};
+const GOLD_RING = '#E4C53C';
 export function Podium({ rows, currentId, academic, admin }) {
   const top = (rows || []).slice(0, 3);
   if (!top.length) return <Empty icon="ranking-star" title="No ranked students yet" text="The leaderboard appears after results are available." />;
-  // visual order: 2nd, 1st, 3rd
-  const order = [1, 0, 2].filter((i) => top[i]);
-  const heights = [96, 128, 72];
   return (
     <View style={s.podium}>
-      {order.map((i) => {
+      {[1, 0, 2].map((i) => {
         const r = top[i];
+        if (!r) return <View key={`e${i}`} style={s.podCol} />;
+        const d = POD[i];
         const me = !admin && r.student_id === currentId;
+        const score = academic ? `${r.total_score} / ${r.total_full_marks}` : `${r.score ?? r.total_score ?? 0} / ${r.total_marks ?? 0}`;
+        const pct = r.percentage != null ? Number(r.percentage) : Number(r.total_marks) ? (Number(r.score ?? r.total_score ?? 0) / Number(r.total_marks)) * 100 : 0;
+        const overlap = d.av * 0.5;
         return (
           <View key={r.student_id || i} style={s.podCol}>
-            {i === 0 && <Image source={require('../../assets/crown.png')} style={s.crown} resizeMode="contain" />}
-            <Avatar uri={r.photo_url} name={r.full_name} size={i === 0 ? 64 : 52} ring />
-            <Text numberOfLines={1} style={s.podName}>{(r.full_name || 'Student').split(' ')[0]}{me ? ' •' : ''}</Text>
-            <Text style={s.podScore}>
-              {academic ? `${num(r.percentage)}%` : r.percentage != null ? `${num(r.percentage)}%` : `${r.score ?? r.total_score ?? 0}/${r.total_marks ?? 0}`}
-            </Text>
-            <View style={[s.podBlock, { height: heights[i] }, me && { borderColor: C.primary, borderWidth: 2 }]}>
-              <Text style={s.podNum}>{i + 1}</Text>
-              <Text style={s.podRank}>{rankLabel(i + 1)}</Text>
+            <Image source={require('../../assets/crown.png')} style={{ width: d.crown * 1.3, height: d.crown, marginBottom: 2, zIndex: 3 }} resizeMode="contain" />
+            <View style={{ zIndex: 3, elevation: 4, marginBottom: -overlap }}>
+              <View style={{ width: d.av + 8, height: d.av + 8, borderRadius: (d.av + 8) / 2, backgroundColor: GOLD_RING, alignItems: 'center', justifyContent: 'center' }}>
+                <Avatar uri={r.photo_url} name={r.full_name} size={d.av} />
+              </View>
             </View>
+            <LinearGradient colors={d.colors} style={[s.podBlock, { height: d.h, paddingTop: overlap + 8 }]}>
+              <View style={{ alignItems: 'center' }}>
+                <Text style={s.podName} numberOfLines={2}>{r.full_name || 'Student'}</Text>
+                {me && <View style={{ marginTop: 3 }}><YouBadge /></View>}
+                <Text style={s.podScore}>{score}</Text>
+                <Text style={s.podPct}>{num(pct)}%</Text>
+              </View>
+              <View style={s.podFoot}>
+                <Text style={s.podNum}>{i + 1}</Text>
+                <Text style={s.podRank}>{rankLabel(i + 1).toUpperCase()}</Text>
+              </View>
+            </LinearGradient>
           </View>
         );
       })}
@@ -274,25 +292,25 @@ export function RankList({ rows, currentId, academic, admin }) {
   let visible;
   if (admin) visible = all.slice(3);
   else {
+    // positions 4..10; if the student is 11th or lower they replace the 10th row
     visible = all.slice(3, 10);
-    const me = all.find((r) => r.student_id === currentId);
-    if (me && me.rank > 10) visible = [...visible, { __gap: true }, me];
+    const meIdx = all.findIndex((r) => r.student_id === currentId);
+    if (meIdx >= 10) visible = [...all.slice(3, 9), all[meIdx]];
   }
   if (!visible.length) return null;
   return (
     <Card style={{ padding: 0, overflow: 'hidden', marginTop: 12 }}>
       {visible.map((r, i) => {
-        if (r.__gap) return <Text key={`g${i}`} style={{ textAlign: 'center', color: C.grey, paddingVertical: 6, fontFamily: F.b }}>• • •</Text>;
         const me = !admin && r.student_id === currentId;
         const score = academic ? `${r.total_score} / ${r.total_full_marks}` : `${r.score ?? r.total_score ?? 0} / ${r.total_marks ?? 0}`;
         const pct = r.percentage != null ? Number(r.percentage) : Number(r.total_marks) ? (Number(r.score ?? r.total_score ?? 0) / Number(r.total_marks)) * 100 : 0;
         return (
-          <View key={r.student_id || i} style={[s.rankRow, me && { backgroundColor: C.soft }]}>
+          <View key={r.student_id || i} style={[s.rankRow, me && { backgroundColor: C.accent }]}>
             <Text style={s.rankNum}>{rankLabel(r.rank)}</Text>
-            <Avatar uri={r.photo_url} name={r.full_name} size={36} />
+            <Avatar uri={r.photo_url} name={r.full_name} size={36} ring={me} />
             <View style={{ flex: 1 }}>
-              <Text style={s.liTitle} numberOfLines={1}>{r.full_name || 'Student'} {me && <YouBadge />}</Text>
-              <Text style={s.liSub}>{academic ? `Roll ${r.roll_number || '—'}` : r.login_id || ''}</Text>
+              <Text style={s.liTitle} numberOfLines={1}>{r.full_name || 'Student'}{me ? '  (You)' : ''}</Text>
+              <Text style={[s.liSub, me && { color: C.primary }]}>{academic ? `Roll ${r.roll_number || '—'}` : r.login_id || ''}</Text>
             </View>
             <View style={{ alignItems: 'flex-end' }}>
               <Text style={[s.liTitle, { fontSize: 13 }]}>{score}</Text>
@@ -352,13 +370,14 @@ const s = StyleSheet.create({
   statSub: { fontFamily: F.m, fontSize: 10.5, color: C.grey, marginTop: 2 },
   you: { backgroundColor: C.accent, borderRadius: 8, paddingHorizontal: 6, paddingVertical: 1 },
   podium: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center', gap: 8, marginTop: 8 },
-  podCol: { flex: 1, alignItems: 'center' },
-  crown: { width: 34, height: 28, marginBottom: 2 },
-  podName: { fontFamily: F.s, fontSize: 12, color: C.primary, marginTop: 6, maxWidth: 96 },
-  podScore: { fontFamily: F.m, fontSize: 11, color: C.grey, marginBottom: 6 },
-  podBlock: { width: '100%', backgroundColor: C.primary, borderTopLeftRadius: 12, borderTopRightRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  podNum: { fontFamily: F.b, fontSize: 26, color: C.accent },
-  podRank: { fontFamily: F.m, fontSize: 10.5, color: C.white },
+  podCol: { flex: 1, alignItems: 'stretch' },
+  podName: { fontFamily: F.b, fontSize: 12, color: C.primary, textAlign: 'center', paddingHorizontal: 4, lineHeight: 16 },
+  podScore: { fontFamily: F.m, fontSize: 12, color: 'rgba(17,17,17,0.55)', marginTop: 4 },
+  podPct: { fontFamily: F.m, fontSize: 11, color: 'rgba(17,17,17,0.7)' },
+  podBlock: { width: '100%', borderTopLeftRadius: 26, borderTopRightRadius: 26, alignItems: 'center', justifyContent: 'space-between', paddingBottom: 10, overflow: 'hidden' },
+  podFoot: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center', gap: 6 },
+  podNum: { fontFamily: F.b, fontSize: 30, color: C.white, lineHeight: 34 },
+  podRank: { fontFamily: F.s, fontSize: 11, color: C.white, marginBottom: 5, letterSpacing: 0.8 },
   rankRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 12, borderBottomWidth: 1, borderColor: C.line },
   rankNum: { width: 36, fontFamily: F.b, fontSize: 13, color: C.primary },
 });

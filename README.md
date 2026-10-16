@@ -23,3 +23,10 @@ Students see a red count on the bell; tapping opens the item. (In-app only — p
 ## Build
 GitHub → Actions → **Build Android APK** → Run workflow → download from Releases. No terminal needed.
 Colours/theme: `src/theme.js`. Logo used in login + side menu: `assets/logo.png`. Splash logo: `assets/shield.png`.
+
+## v1.2 notes
+- Phone Back button / back gesture undoes one step (history). On Home it exits the app; closes menus/full-screen first.
+- Leaderboards (latest quiz, cumulative, exams): gold/silver/bronze podium, 1st centre & tallest; current student highlighted.
+- Student top-left = profile photo (opens profile); teacher top-left = logo.png.
+- Lectures stay inside the app (navigation to YouTube is blocked).
+- New dependency: expo-linear-gradient (installed automatically by the GitHub build).

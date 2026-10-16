@@ -2,7 +2,6 @@ import React, { useRef, useState } from 'react';
 import { Animated, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Btn, Field, Icon } from '../components/ui';
-import BrandLockup from '../components/BrandLockup';
 import { useApp, useUi } from '../lib/app';
 import { C, F, R, shadow } from '../theme';
 
@@ -33,7 +32,7 @@ export default function Login() {
           <View style={st.hero}>
             <SafeAreaView edges={['top']} style={{ alignItems: 'center' }}>
               <Image source={require('../../assets/logo.png')} style={st.logo} resizeMode="contain" />
-              <View style={{ marginTop: 14 }}><BrandLockup light scale={1.25} align="center" estd={false} /></View>
+              <Text style={st.brand} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>BRILLIANT COACHING CENTRE</Text>
               <Text style={st.brandSub}>Student & Teacher Portal</Text>
             </SafeAreaView>
           </View>
@@ -52,9 +51,9 @@ export default function Login() {
               returnKeyType="next" onSubmitEditing={() => pwRef.current?.focus()} />
             <Field label="Enter password" placeholder="Enter your password" value={pw} onChangeText={setPw} secure
               autoComplete="current-password" returnKeyType="go" onSubmitEditing={submit} />
-            <Btn label="Login" icon="arrow-right" kind="primary" onPress={submit} full style={{ paddingVertical: 14, marginTop: 4 }} />
+            <Btn label="Login" icon={portal === 'student' ? 'user-graduate' : 'chalkboard-user'} kind="primary" onPress={submit} full style={{ paddingVertical: 14, marginTop: 4 }} />
             <Text style={st.hint}>
-              {portal === 'student' ? 'Student login: use the Student ID given by BCC.' : 'Teacher login: enter your Teacher ID (e.g. BCC01ZQ) and the password given by BCC.'}
+              {portal === 'student' ? 'Student login: use the Student ID given by BCC.' : 'Teacher login: use the Teacher ID given by BCC.'}
             </Text>
           </Animated.View>
           <Text style={st.foot}>Brilliant Coaching Centre • Estd. 2009{'\n'}Kairi Birpur, Dist- Kishanganj, Bihar</Text>
@@ -67,6 +66,7 @@ export default function Login() {
 const st = StyleSheet.create({
   hero: { backgroundColor: C.primary, paddingBottom: 56, borderBottomLeftRadius: 36, borderBottomRightRadius: 36, alignItems: 'center' },
   logo: { width: 116, height: 116, marginTop: 18 },
+  brand: { fontFamily: F.s, fontSize: 14, letterSpacing: 1.3, color: C.accent, marginTop: 14, paddingHorizontal: 16 },
   brandSub: { fontFamily: F.m, fontSize: 13, color: C.accent, textAlign: 'center', marginTop: 8 },
   card: { backgroundColor: C.white, marginHorizontal: 18, marginTop: -34, borderRadius: R.lg, padding: 18, ...shadow },
   tabs: { flexDirection: 'row', backgroundColor: C.lav, borderRadius: 14, padding: 4, marginBottom: 18 },

@@ -164,7 +164,15 @@ export function NavProvider({ initial, children }) {
   const mk = (name, params) => ({ key: `k${counter.current++}`, name, params: params || {} });
   const push = useCallback((name, params) => { setDrawer(false); setStack((s) => [...s, mk(name, params)]); }, []);
   const replace = useCallback((name, params) => setStack((s) => [...s.slice(0, -1), mk(name, params)]), []);
-  const reset = useCallback((name, params) => { setDrawer(false); setStack([mk(name, params)]); }, []);
+  // "reset" = open a main screen. It is added to the history so the phone's Back button returns to the previous screen.
+  const reset = useCallback((name, params) => {
+    setDrawer(false);
+    setStack((s) => {
+      const cur = s[s.length - 1];
+      if (cur.name === name && !params) return s;
+      return [...s, mk(name, params)].slice(-40);
+    });
+  }, []);
   const pop = useCallback(() => setStack((s) => (s.length > 1 ? s.slice(0, -1) : s)), []);
   const setGuard = useCallback((fn) => { guard.current = fn; }, []);
 

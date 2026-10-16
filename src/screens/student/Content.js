@@ -195,8 +195,18 @@ export function LecturePlayer({ params, nav }) {
   const media = !q.data ? (q.error ? <Empty icon="triangle-exclamation" title="Could not load lecture" text={q.error.message} /> : <Loading />)
     : x.youtube_url ? (
       yt ? (
+        <>
         <WebView
           allowsFullscreenVideo={false}
+          setSupportMultipleWindows={false}
+          // Never leave the app: block every top-level navigation (YouTube logo, title, channel, share, "watch on YouTube"...)
+          onShouldStartLoadWithRequest={(req) => {
+            const u = req?.url || '';
+            if (u.startsWith('about:') || u.startsWith('data:') || u.startsWith('https://rezanadaf9-star.github.io')) return true;
+            if (req?.isTopFrame === false) return /^https?:/i.test(u); // frames inside the player keep working
+            return false;
+          }}
+          onOpenWindow={() => {}}
           javaScriptEnabled
           mediaPlaybackRequiresUserAction={false}
           originWhitelist={['*']}
@@ -204,9 +214,13 @@ export function LecturePlayer({ params, nav }) {
           // https base URL avoids YouTube's "error 153" inside WebViews. fs=0 hides YouTube's own full-screen button (ours handles landscape).
           source={{
             baseUrl: 'https://rezanadaf9-star.github.io/',
-            html: `<html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:#000"><iframe width="100%" height="100%" style="border:0;position:absolute;inset:0" src="https://www.youtube.com/embed/${encodeURIComponent(yt)}?rel=0&playsinline=1&fs=0&modestbranding=1" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"></iframe></body></html>`,
-          }}
+            html: `<html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:#000"><iframe width="100%" height="100%" style="border:0;position:absolute;inset:0" src="https://www.youtube.com/embed/${encodeURIComponent(yt)}?rel=0&playsinline=1&fs=0&modestbranding=1&iv_load_policy=3&disablekb=1" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"></iframe></body></html>`,
+ }}
         />
+        <View pointerEvents="auto" style={[st.shield, { top: 0, left: 0, right: 120, height: 58 }]} />
+        <View pointerEvents="auto" style={[st.shield, { bottom: 0, right: 0, width: 112, height: 40 }]} />
+        <View pointerEvents="auto" style={[st.shield, { bottom: 0, left: 0, width: 64, height: 48 }]} />
+        </>
       ) : <Empty icon="link-slash" title="Invalid YouTube URL" text="The teacher configured an invalid link." />
     ) : q.data.file ? <FileVideo url={q.data.file} />
       : <Empty icon="video-slash" title="No lecture media" text="No lecture media has been attached yet." />;
@@ -426,6 +440,7 @@ export function NotebookLM() {
 }
 
 const st = StyleSheet.create({
+  shield: { position: 'absolute', backgroundColor: 'transparent' },
   fsBtn: { position: 'absolute', right: 10, width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center' },
   cHead: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
   cTitle: { flex: 1, fontFamily: F.b, fontSize: 16, color: C.primary },
