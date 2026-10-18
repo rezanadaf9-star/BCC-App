@@ -205,7 +205,7 @@ export function QuizRun({ params, nav }) {
         </View>
         <View style={st.track}><View style={[st.fill, { width: `${((idx + 1) / questions.length) * 100}%` }]} /></View>
 
-        <ScrollView contentContainerStyle={{ paddingVertical: 14 }} showsVerticalScrollIndicator={false}>
+        <ScrollView showsVerticalScrollIndicator={false} showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingVertical: 14 }} showsVerticalScrollIndicator={false}>
           <View style={st.qCard}>
             <Text style={st.qNo}>Question {idx + 1}</Text>
             <Text style={st.qText} selectable={false}>{q.question_text}</Text>

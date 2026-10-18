@@ -329,7 +329,7 @@ export default function DiscussionView({ lectureId, moderator = false, header = 
 
   // Only the lecture media and metadata stay pinned. Discussion content scrolls underneath.
   const listHeader = (
-    <View style={stickyLectureHeader ? { backgroundColor: C.bg, zIndex: 5, elevation: 5 } : null}>
+    <View style={stickyLectureHeader ? { backgroundColor: C.bg, zIndex: 5, elevation: 0 } : null}>
       {header}
       {!stickyLectureHeader && <>
         <View style={st.discHead}><Icon name="comments" size={15} /><Text style={st.discTitle}>Discussion</Text><Pill text={String(rows.length)} /></View>
@@ -345,7 +345,7 @@ export default function DiscussionView({ lectureId, moderator = false, header = 
   }
   return (
     <View style={{ flex: 1 }}>
-      <FlatList
+      <FlatList showsVerticalScrollIndicator={false} showsHorizontalScrollIndicator={false}
         ref={listRef}
         data={scrollingItems}
         keyExtractor={(it) => it.key}

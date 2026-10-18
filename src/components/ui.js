@@ -16,7 +16,7 @@ export const Icon = ({ name, size = 16, color = C.primary, solid = true, style }
 
 export function Page({ children, onRefresh, refreshing = false, style, bottom = 28 }) {
   return (
-    <ScrollView
+    <ScrollView showsVerticalScrollIndicator={false} showsHorizontalScrollIndicator={false}
       style={{ flex: 1 }}
       contentContainerStyle={[{ padding: 16, paddingBottom: bottom }, style]}
       keyboardShouldPersistTaps="handled"
@@ -175,7 +175,7 @@ export function Sheet({ visible, onClose, title, children, footer, compact }) {
             <Text style={s.sheetTitle} numberOfLines={2}>{title}</Text>
             <Pressable onPress={onClose} hitSlop={12} style={s.close}><Icon name="xmark" size={15} /></Pressable>
           </View>
-          <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 16, paddingBottom: 24 }}>{children}</ScrollView>
+          <ScrollView showsVerticalScrollIndicator={false} showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 16, paddingBottom: 24 }}>{children}</ScrollView>
           {footer && <View style={s.sheetFoot}>{footer}</View>}
         </View>
       </KeyboardAvoidingView>

@@ -30,7 +30,7 @@ export default function Login() {
     <View style={{ flex: 1, backgroundColor: C.bg }}>
       <StatusBar backgroundColor={C.primary} barStyle="light-content" />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ flexGrow: 1 }} showsVerticalScrollIndicator={false}>
+        <ScrollView showsVerticalScrollIndicator={false} showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ flexGrow: 1 }} showsVerticalScrollIndicator={false}>
           <View style={st.hero}>
             <SafeAreaView edges={['top']} style={{ alignItems: 'center' }}>
               <Image source={require('../../assets/logo.png')} style={st.logo} resizeMode="contain" />

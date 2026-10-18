@@ -61,7 +61,7 @@ export default function Shell() {
      <ProfileCtx.Provider value={() => setProfileOpen(true)}>
       <View style={{ flex: 1, backgroundColor: C.bg, paddingTop: hideChrome ? 0 : insets.top }}>
         <StatusBar hidden={nav.immersive} barStyle="dark-content" backgroundColor={C.bg} />
-        {!hideChrome && !meta.home && (
+        {!hideChrome && !meta.home && nav.current.name !== 'lecture-player' && (
           <View style={st.top}>
             {canBack ? (
               <Pressable style={st.circ} onPress={() => nav.pop()} hitSlop={6}><Icon name="chevron-left" size={15} /></Pressable>
