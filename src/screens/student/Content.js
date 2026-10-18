@@ -1,5 +1,5 @@
 // Lectures / Notes / Homework (+ NotebookLM) for students
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Image, Linking, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { WebView } from 'react-native-webview';
@@ -136,7 +136,9 @@ export function LecturePlayer({ params, nav }) {
   const { width, height } = useWindowDimensions();
   const [fs, setFs] = useState(false);
   const [youtubePlaying, setYoutubePlaying] = useState(false);
-  const full = fs || width > height; // rotating the phone to landscape = full screen
+  const youtubeWebRef = useRef(null);
+  const [youtubeReady, setYoutubeReady] = useState(false);
+  const full = !youtubePlaying && (fs || width > height); // rotating the phone to landscape = full screen
   const q = useAsync(async () => {
     const { data, error } = await sb.from('lectures').select('*,subjects(name)').eq('id', params.lectureId).single();
     if (error) throw error;
@@ -171,28 +173,50 @@ export function LecturePlayer({ params, nav }) {
 
   const media = !q.data ? (q.error ? <Empty icon="triangle-exclamation" title="Could not load lecture" text={q.error.message} /> : <Loading />)
     : x.youtube_url ? (
-      yt ? (!youtubePlaying ? (
-        <Pressable onPress={() => setYoutubePlaying(true)} style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#000' }}>
-          <Image source={{ uri: `https://i.ytimg.com/vi/${yt}/hqdefault.jpg` }} resizeMode="cover" style={{ width: '100%', height: '100%', position: 'absolute' }} />
-          <View style={{ width: 70, height: 48, borderRadius: 14, backgroundColor: '#ff0033', alignItems: 'center', justifyContent: 'center' }}>
-            <Icon name="play" size={24} color="#fff" />
-          </View>
-        </Pressable>
-      ) : (
-        <WebView
-          allowsFullscreenVideo
-          allowsInlineMediaPlayback
-          setSupportMultipleWindows={false}
-          javaScriptEnabled
-          mediaPlaybackRequiresUserAction={false}
-          originWhitelist={['*']}
-          style={{ flex: 1, backgroundColor: '#000' }}
-          source={{
-            baseUrl: 'https://rezanadaf9-star.github.io/',
-            html: `<html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:#000"><iframe width="100%" height="100%" style="border:0;position:absolute;inset:0" src="https://www.youtube.com/embed/${encodeURIComponent(yt)}?autoplay=1&rel=0&playsinline=1&fs=1&controls=1&iv_load_policy=3" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen" allowfullscreen></iframe></body></html>`,
-          }}
-        />
-      )) : <Empty icon="link-slash" title="Invalid YouTube URL" text="The teacher configured an invalid link." />
+      yt ? (
+        <View style={{ flex: 1, backgroundColor: '#000' }}>
+          {/* Keep the SAME player mounted before and after tapping, so playback is not reset. */}
+          <WebView
+            key={yt}
+            ref={youtubeWebRef}
+            allowsFullscreenVideo
+            allowsInlineMediaPlayback
+            setSupportMultipleWindows={false}
+            javaScriptEnabled
+            mediaPlaybackRequiresUserAction={false}
+            originWhitelist={['*']}
+            onMessage={(event) => {
+              if (event.nativeEvent.data === 'ready') {
+                setYoutubeReady(true);
+                if (youtubePlaying) youtubeWebRef.current?.injectJavaScript('playLecture();true;');
+              }
+            }}
+            onShouldStartLoadWithRequest={(request) => {
+              const url = request.url || '';
+              return url.startsWith('about:') || url.startsWith('https://www.youtube.com/embed/') || url.startsWith('https://www.youtube-nocookie.com/embed/') || url.startsWith('https://rezanadaf9-star.github.io/');
+            }}
+            style={{ flex: 1, backgroundColor: '#000' }}
+            source={{
+              baseUrl: 'https://rezanadaf9-star.github.io/',
+              html: `<html><head><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"></head><body style="margin:0;background:#000;overflow:hidden"><div id="player" style="position:absolute;inset:0"></div><script>var player;function playLecture(){if(player&&player.playVideo)player.playVideo()}function onYouTubeIframeAPIReady(){player=new YT.Player('player',{width:'100%',height:'100%',videoId:'${yt}',playerVars:{autoplay:0,controls:1,fs:1,playsinline:1,rel:0,iv_load_policy:3},events:{onReady:function(){window.ReactNativeWebView.postMessage('ready')}}})}</script><script src="https://www.youtube.com/iframe_api"></script></body></html>`,
+            }}
+          />
+          {!youtubePlaying && (
+            <Pressable
+              onPress={() => {
+                setYoutubePlaying(true);
+                youtubeWebRef.current?.injectJavaScript('playLecture();true;');
+              }}
+              style={{ ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', backgroundColor: '#000' }}
+            >
+              <Image source={{ uri: `https://i.ytimg.com/vi/${yt}/hqdefault.jpg` }} resizeMode="cover" style={StyleSheet.absoluteFillObject} />
+              <View style={{ width: 70, height: 48, borderRadius: 14, backgroundColor: '#ff0033', alignItems: 'center', justifyContent: 'center' }}>
+                <Icon name="play" size={24} color="#fff" />
+              </View>
+            </Pressable>
+          )}
+        </View>
+      ) : <Empty icon="link-slash" title="Invalid YouTube URL" text="The teacher configured an invalid link." />
     ) : q.data.file ? <FileVideo url={q.data.file} />
       : <Empty icon="video-slash" title="No lecture media" text="No lecture media has been attached yet." />;
 
