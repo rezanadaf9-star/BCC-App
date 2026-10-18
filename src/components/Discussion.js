@@ -327,14 +327,18 @@ export default function DiscussionView({ lectureId, moderator = false, header = 
     </View>
   ) : null;
 
+  // Only the lecture media and metadata stay pinned. Discussion content scrolls underneath.
   const listHeader = (
     <View style={stickyLectureHeader ? { backgroundColor: C.bg, zIndex: 5, elevation: 5 } : null}>
       {header}
-      <View style={[st.discHead, stickyLectureHeader && { marginHorizontal: 16 }]}><Icon name="comments" size={15} /><Text style={st.discTitle}>Discussion</Text><Pill text={String(rows.length)} /></View>
-      <Text style={[st.hint, stickyLectureHeader && { marginHorizontal: 16 }]}>{moderator ? 'Reply to students and moderate comments.' : 'Everyone in your class can see these comments. Teachers will reply to doubts.'}</Text>
-      {stickyLectureHeader ? <View style={{ marginHorizontal: 16 }}>{mainComposer}</View> : mainComposer}
+      {!stickyLectureHeader && <>
+        <View style={st.discHead}><Icon name="comments" size={15} /><Text style={st.discTitle}>Discussion</Text><Pill text={String(rows.length)} /></View>
+        <Text style={st.hint}>{moderator ? 'Reply to students and moderate comments.' : 'Everyone in your class can see these comments. Teachers will reply to doubts.'}</Text>
+        {mainComposer}
+      </>}
     </View>
   );
+  const scrollingItems = stickyLectureHeader ? [{ key: '__discussion_intro__' }, ...items] : items;
 
   if (q.data?.missing) {
     return <View style={{ flex: 1, padding: 16 }}>{header}<Card><Text style={st.hint}>Comments are not enabled yet. Ask your teacher.</Text></Card></View>;
@@ -343,9 +347,15 @@ export default function DiscussionView({ lectureId, moderator = false, header = 
     <View style={{ flex: 1 }}>
       <FlatList
         ref={listRef}
-        data={items}
+        data={scrollingItems}
         keyExtractor={(it) => it.key}
-        renderItem={stickyLectureHeader ? (props) => <View style={{ paddingHorizontal: 16 }}>{renderItem(props)}</View> : renderItem}
+        renderItem={stickyLectureHeader ? (props) => props.item.key === '__discussion_intro__' ? (
+          <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
+            <View style={st.discHead}><Icon name="comments" size={15} /><Text style={st.discTitle}>Discussion</Text><Pill text={String(rows.length)} /></View>
+            <Text style={st.hint}>{moderator ? 'Reply to students and moderate comments.' : 'Everyone in your class can see these comments. Teachers will reply to doubts.'}</Text>
+            {mainComposer}
+          </View>
+        ) : <View style={{ paddingHorizontal: 16 }}>{renderItem(props)}</View> : renderItem}
         extraData={[replyTo?.id, draft, expanded, avatarMap, sending]}
         ListHeaderComponent={listHeader}
         stickyHeaderIndices={stickyLectureHeader ? [0] : undefined}
