@@ -138,7 +138,7 @@ export function LecturePlayer({ params, nav }) {
   const [youtubePlaying, setYoutubePlaying] = useState(false);
   const youtubeWebRef = useRef(null);
   const [youtubeReady, setYoutubeReady] = useState(false);
-  const full = !youtubePlaying && (fs || width > height); // rotating the phone to landscape = full screen
+  const full = fs; // Custom fullscreen is used only for uploaded files; YouTube uses its own native control
   const q = useAsync(async () => {
     const { data, error } = await sb.from('lectures').select('*,subjects(name)').eq('id', params.lectureId).single();
     if (error) throw error;
@@ -186,9 +186,14 @@ export function LecturePlayer({ params, nav }) {
             mediaPlaybackRequiresUserAction={false}
             originWhitelist={['*']}
             onMessage={(event) => {
-              if (event.nativeEvent.data === 'ready') {
+              const message = event.nativeEvent.data;
+              if (message === 'ready') {
                 setYoutubeReady(true);
                 if (youtubePlaying) youtubeWebRef.current?.injectJavaScript('playLecture();true;');
+              } else if (message === 'yt-fullscreen-enter') {
+                ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE).catch(() => {});
+              } else if (message === 'yt-fullscreen-exit') {
+                ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
               }
             }}
             onShouldStartLoadWithRequest={(request) => {
@@ -198,7 +203,7 @@ export function LecturePlayer({ params, nav }) {
             style={{ flex: 1, backgroundColor: '#000' }}
             source={{
               baseUrl: 'https://rezanadaf9-star.github.io/',
-              html: `<html><head><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"></head><body style="margin:0;background:#000;overflow:hidden"><div id="player" style="position:absolute;inset:0"></div><script>var player;function playLecture(){if(player&&player.playVideo)player.playVideo()}function onYouTubeIframeAPIReady(){player=new YT.Player('player',{width:'100%',height:'100%',videoId:'${yt}',playerVars:{autoplay:0,controls:1,fs:1,playsinline:1,rel:0,iv_load_policy:3},events:{onReady:function(){window.ReactNativeWebView.postMessage('ready')}}})}</script><script src="https://www.youtube.com/iframe_api"></script></body></html>`,
+              html: `<html><head><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"></head><body style="margin:0;background:#000;overflow:hidden"><div id="player" style="position:absolute;inset:0"></div><script>function reportFullscreen(){window.ReactNativeWebView.postMessage(document.fullscreenElement||document.webkitFullscreenElement?'yt-fullscreen-enter':'yt-fullscreen-exit')}document.addEventListener('fullscreenchange',reportFullscreen);document.addEventListener('webkitfullscreenchange',reportFullscreen);var player;function playLecture(){if(player&&player.playVideo)player.playVideo()}function onYouTubeIframeAPIReady(){player=new YT.Player('player',{width:'100%',height:'100%',videoId:'${yt}',playerVars:{autoplay:0,controls:1,fs:1,playsinline:1,rel:0,iv_load_policy:3},events:{onReady:function(){window.ReactNativeWebView.postMessage('ready')}}})}</script><script src="https://www.youtube.com/iframe_api"></script></body></html>`,
             }}
           />
           {!youtubePlaying && (
