@@ -35,3 +35,11 @@ Colours/theme: `src/theme.js`. Logo used in login + side menu: `assets/logo.png`
 - Lecture discussion: classmates see each other's comments; Reply button (threads); teachers/admin get a "Discussions" screen
   (More menu / dashboard) to reply and delete. Run `supabase/APP_FEATURES_2_REPLIES.sql` once (after APP_FEATURES.sql).
 - Podium: photo + crown centred. List ranks are by position (4th, 5th, ...).
+
+## v1.4 notes
+- Splash + login: "Powered By / Nadaf Creates" (navy, thin + bold); login status bar navy, splash status bar yellow.
+- Lectures / Notes / Homework: "Today's ..." section (school day, Asia/Kolkata), Live Now for live lectures, subject cards below.
+- Discussion: threaded replies with curved thread lines, bottom composer, inline reply, @mentions, portal photos.
+- Result popup: confetti + sound, once per student per result (result_popup_acks).
+- Device sessions: Android = 1 slot (admin 2), separate from the browser; silent replacement of the oldest session.
+See DEPLOY-GUIDE.md.

@@ -19,6 +19,7 @@ export const C = {
   sun: '#FFF3A8',
 };
 export const F = {
+  t: 'Poppins_200ExtraLight',
   r: 'Poppins_400Regular',
   m: 'Poppins_500Medium',
   s: 'Poppins_600SemiBold',

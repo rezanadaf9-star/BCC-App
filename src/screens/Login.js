@@ -1,7 +1,8 @@
 import React, { useRef, useState } from 'react';
-import { Animated, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Animated, Image, StatusBar, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Btn, Field, Icon } from '../components/ui';
+import PoweredBy from '../components/PoweredBy';
 import { useApp, useUi } from '../lib/app';
 import { C, F, R, shadow } from '../theme';
 
@@ -27,6 +28,7 @@ export default function Login() {
 
   return (
     <View style={{ flex: 1, backgroundColor: C.bg }}>
+      <StatusBar backgroundColor={C.primary} barStyle="light-content" />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ flexGrow: 1 }} showsVerticalScrollIndicator={false}>
           <View style={st.hero}>
@@ -47,7 +49,7 @@ export default function Login() {
               ))}
             </View>
 
-            <Field label="Enter ID" placeholder="Enter your BCC ID" value={id} onChangeText={setId} autoComplete="username"
+            <Field label="Enter ID" placeholder={portal === 'student' ? 'Enter your Student ID' : 'Enter your Teacher ID'} value={id} onChangeText={setId} autoComplete="username"
               returnKeyType="next" onSubmitEditing={() => pwRef.current?.focus()} />
             <Field label="Enter password" placeholder="Enter your password" value={pw} onChangeText={setPw} secure
               autoComplete="current-password" returnKeyType="go" onSubmitEditing={submit} />
@@ -56,7 +58,7 @@ export default function Login() {
               {portal === 'student' ? 'Student login: use the Student ID given by BCC.' : 'Teacher login: use the Teacher ID given by BCC.'}
             </Text>
           </Animated.View>
-          <Text style={st.foot}>Brilliant Coaching Centre • Estd. 2009{'\n'}Kairi Birpur, Dist- Kishanganj, Bihar</Text>
+          <PoweredBy style={{ marginTop: 'auto' }} />
         </ScrollView>
       </KeyboardAvoidingView>
     </View>

@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { AppState } from 'react-native';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { decode } from 'base64-arraybuffer';
 import { sb } from './supabase';
-import { AUTH_EMAIL_DOMAIN, ADMIN_EMAIL, SUPABASE_URL, SUPABASE_ANON_KEY } from '../config';
+import { AUTH_EMAIL_DOMAIN, ADMIN_EMAIL, SUPABASE_URL, SUPABASE_ANON_KEY, SCHOOL_TZ_OFFSET_MIN } from '../config';
 
 export const fmtDate = (v) =>
   v ? new Date(v).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
@@ -228,4 +229,41 @@ export function todayLabel() {
 export function isMissingTable(e) {
   const t = `${e?.code || ''} ${e?.message || ''}`;
   return /42P01|PGRST205|PGRST200|does not exist|schema cache/i.test(t);
+}
+
+/* ---------- school-local "today" (Asia/Kolkata, UTC+05:30) ---------- */
+const OFFSET_MS = SCHOOL_TZ_OFFSET_MIN * 60000;
+/** YYYY-MM-DD of a moment in school-local time. */
+export const dayKey = (d = new Date()) => new Date(new Date(d).getTime() + OFFSET_MS).toISOString().slice(0, 10);
+export const isToday = (v) => !!v && dayKey(v) === dayKey();
+
+/** Re-renders the caller when the school day changes (midnight) and when the app returns to the foreground. */
+export function useDayKey() {
+  const [k, setK] = useState(dayKey());
+  useEffect(() => {
+    let t;
+    const arm = () => {
+      const now = Date.now() + OFFSET_MS;
+      const next = (Math.floor(now / 86400000) + 1) * 86400000;
+      t = setTimeout(() => { setK(dayKey()); arm(); }, next - now + 1500);
+    };
+    arm();
+    const sub = AppState.addEventListener('change', (s) => { if (s === 'active') setK(dayKey()); });
+    return () => { clearTimeout(t); sub.remove(); };
+  }, []);
+  return k;
+}
+
+/** Supabase Realtime: call onChange whenever rows of these tables (for this class) change. Cleans up automatically. */
+export function useRealtimeTables(tables, classNo, onChange) {
+  const cb = useRef(onChange);
+  cb.current = onChange;
+  const key = tables.join(',');
+  useEffect(() => {
+    if (!classNo) return undefined;
+    const ch = sb.channel(`rt-${key}-${classNo}-${Math.random().toString(36).slice(2, 7)}`);
+    tables.forEach((t) => ch.on('postgres_changes', { event: '*', schema: 'public', table: t, filter: `class_no=eq.${classNo}` }, () => cb.current && cb.current()));
+    ch.subscribe();
+    return () => { try { sb.removeChannel(ch); } catch (_) {} };
+  }, [classNo, key]);
 }

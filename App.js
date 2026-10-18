@@ -5,13 +5,14 @@ import * as ScreenOrientation from 'expo-screen-orientation';
 import * as NavigationBar from 'expo-navigation-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import {
-  useFonts, Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold, Poppins_700Bold,
+  useFonts, Poppins_200ExtraLight, Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold, Poppins_700Bold,
 } from '@expo-google-fonts/poppins';
 import { AppProvider, NavProvider, UiProvider, useApp } from './src/lib/app';
 import { NotifProvider } from './src/lib/notifications';
 import AnimatedSplash from './src/components/AnimatedSplash';
 import Login from './src/screens/Login';
 import Shell from './src/components/Shell';
+import SessionGuard from './src/components/SessionGuard';
 import { C } from './src/theme';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -45,7 +46,7 @@ function Root() {
 }
 
 export default function App() {
-  const [fontsLoaded] = useFonts({ Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold, Poppins_700Bold });
+  const [fontsLoaded] = useFonts({ Poppins_200ExtraLight, Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold, Poppins_700Bold });
   const [sessionReady, setSessionReady] = useState(false);
   const [splashDone, setSplashDone] = useState(false);
 
@@ -64,6 +65,7 @@ export default function App() {
         <AppProvider onReady={() => setSessionReady(true)}>
           <View style={{ flex: 1, backgroundColor: C.bg }} onLayout={onLayout}>
             <NavBarColor splashDone={splashDone} />
+            <SessionGuard />
             <Root />
             {!splashDone && <AnimatedSplash ready={sessionReady} onDone={() => setSplashDone(true)} />}
           </View>

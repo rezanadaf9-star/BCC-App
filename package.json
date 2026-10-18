@@ -1,6 +1,6 @@
 {
   "name": "bcc-portal-app",
-  "version": "1.1.0",
+  "version": "1.4.0",
   "main": "node_modules/expo/AppEntry.js",
   "scripts": {
     "start": "expo start",
@@ -14,6 +14,7 @@
     "@supabase/supabase-js": "^2.45.0",
     "base64-arraybuffer": "^1.0.2",
     "expo": "~52.0.0",
+    "expo-av": "~15.0.1",
     "expo-clipboard": "~7.0.0",
     "expo-document-picker": "~13.0.0",
     "expo-file-system": "~18.0.0",

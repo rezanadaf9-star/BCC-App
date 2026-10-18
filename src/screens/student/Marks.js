@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Async, Card, Empty, Head, Icon, ListItem, Page, Pill, Podium, RankList, Sheet, Btn, Label, Stat } from '../../components/ui';
 import { useApp, useUi } from '../../lib/app';
@@ -11,7 +11,7 @@ import { C, F, R } from '../../theme';
 const EXAM_SEL = 'id,class_no,exam_name,created_at,result_declared,academic_exam_subjects(subject_id,subject_name,full_marks)';
 
 /* ----------------------------- Academic marks (school exams) ----------------------------- */
-export function StudentMarks({ nav }) {
+export function StudentMarks({ nav, params }) {
   const { classNo, profile } = useApp();
   const { toast } = useUi();
   const [detail, setDetail] = useState(null);
@@ -26,6 +26,7 @@ export function StudentMarks({ nav }) {
     return { exams, declared, latest, rows, me: rows.find((r) => r.student_id === profile.id) || null };
   }, [classNo]);
 
+  const openedFor = useRef(null);
   const openDetail = async (exam) => {
     try {
       const { data: record, error } = await sb.from('student_exam_marks').select('marks,status,updated_at,included_subject_ids').eq('exam_id', exam.id).eq('student_id', profile.id).maybeSingle();
@@ -37,6 +38,13 @@ export function StudentMarks({ nav }) {
       setDetail({ exam, record, rank: mine?.rank || 0, totals: academicTotals(exam, record) });
     } catch (e) { toast(e.message, 'error'); }
   };
+
+  useEffect(() => {
+    const id = params?.openExam;
+    if (!id || openedFor.current === id || !q.data) return;
+    const exam = q.data.exams.find((e) => e.id === id);
+    if (exam) { openedFor.current = id; openDetail(exam); }
+  }, [params?.openExam, q.data]);
 
   return (
     <Page onRefresh={q.reload} refreshing={q.loading && !!q.data}>

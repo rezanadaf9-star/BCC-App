@@ -4,3 +4,6 @@ export const SUPABASE_ANON_KEY = 'sb_publishable_clBkIJw9zn_efj_hvUt9rA_q8ZywH3B
 export const AUTH_EMAIL_DOMAIN = 'students.bcc-portal.invalid';
 export const ADMIN_EMAIL = 'rezanadaf9@gmail.com'; // login ID "ADMIN" maps to this e-mail (as on the website)
 export const WEBSITE_URL = 'https://rezanadaf9-star.github.io/bcc-kne/';
+
+// School-local time (India has no DST): used for "Today" sections.
+export const SCHOOL_TZ_OFFSET_MIN = 330; // Asia/Kolkata = UTC+05:30

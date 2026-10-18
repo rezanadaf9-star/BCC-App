@@ -20,7 +20,7 @@ export default function Notifications({ nav }) {
     else if (n.kind === 'homework' && n.ref_subject_id) nav.push('homework-subject', { subjectId: n.ref_subject_id });
     else if (n.kind === 'quiz') nav.reset('quizzes');
     else if (n.kind === 'ai') nav.reset('notebooklm');
-    else if (n.kind === 'result') nav.reset('student-marks');
+    else if (n.kind === 'result') nav.reset('student-marks', n.ref_id ? { openExam: n.ref_id } : undefined);
   };
 
   return (

@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Dimensions, Easing, Image, Pressable, StatusBar, StyleSheet, Text, View } from 'react-native';
+import { Animated, Dimensions, Easing, Image, Keyboard, Pressable, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { Avatar, Btn, Icon, Sheet, Label, TitleCtx } from './ui';
 import BrandLockup from './BrandLockup';
 import { BellButton, ProfileCtx, useMyPhoto } from './HomeHeader';
+import ResultAnnouncer from './ResultAnnouncer';
 import { useApp, useNav, useUi } from '../lib/app';
 import { useNotif } from '../lib/notifications';
 import { sb } from '../lib/supabase';
@@ -33,6 +34,12 @@ export default function Shell() {
   const nav = useNav();
   const insets = useSafeAreaInsets();
   const [profileOpen, setProfileOpen] = useState(false);
+  const [kb, setKb] = useState(false);
+  useEffect(() => {
+    const a = Keyboard.addListener('keyboardDidShow', () => setKb(true));
+    const b = Keyboard.addListener('keyboardDidHide', () => setKb(false));
+    return () => { a.remove(); b.remove(); };
+  }, []);
   const meta = SCREENS[nav.current.name] || SCREENS.dashboard;
   const Screen = meta.component;
   const hideChrome = !!meta.fullscreen || nav.immersive;
@@ -74,10 +81,11 @@ export default function Shell() {
         <View style={{ flex: 1 }}>
           <Screen params={nav.current.params} nav={nav} key={nav.current.key} />
         </View>
-        {!hideChrome && <BottomNav tabs={tabs} active={activeTab} nav={nav} insets={insets} moreActive={activeTab === 'more'} />}
+        {!hideChrome && !kb && <BottomNav tabs={tabs} active={activeTab} nav={nav} insets={insets} moreActive={activeTab === 'more'} />}
         {!meta.fullscreen && (
           <SideMenu open={nav.drawer} onClose={() => nav.setDrawer(false)} items={moreItems} active={activeTab !== 'more' ? activeTab : nav.current.name} nav={nav} app={app} insets={insets} photo={photo} onProfile={() => { nav.setDrawer(false); setProfileOpen(true); }} />
         )}
+        {isStudent && <ResultAnnouncer blocked={hideChrome} />}
         <ProfileSheet visible={profileOpen} onClose={() => setProfileOpen(false)} photo={photo} />
       </View>
      </ProfileCtx.Provider>

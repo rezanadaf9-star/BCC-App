@@ -81,8 +81,6 @@ export function MarksClass({ params, nav }) {
       const go = async () => {
         const u = await sb.from('academic_exam_sets').update({ result_declared: true }).eq('id', examId).eq('class_no', classNo);
         if (u.error) return toast(u.error.message, 'error');
-        const examName = q.data?.exams?.find((x) => x.id === examId)?.exam_name || 'Exam';
-        await notify({ classNo, kind: 'result', title: `Result declared: ${examName}`, body: 'Open Marks to see your result and class rank.', refId: examId });
         toast('Result declared. Students can now see the leaderboard.', 'success'); q.reload();
       };
       if (unfinished > 0) Alert.alert('Unfinished marks', `${unfinished} student${unfinished === 1 ? '' : 's'} still have unfinished marks. Declare anyway?`, [{ text: 'Cancel', style: 'cancel' }, { text: 'Declare anyway', onPress: go }]);

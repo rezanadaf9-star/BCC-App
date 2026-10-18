@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, Dimensions, Easing, StyleSheet, View } from 'react-native';
+import { Animated, Dimensions, Easing, StatusBar, StyleSheet, View } from 'react-native';
+import PoweredBy from './PoweredBy';
 import { C, F } from '../theme';
 
 const { width: W } = Dimensions.get('window');
@@ -65,6 +66,7 @@ export default function AnimatedSplash({ ready, onDone }) {
 
   return (
     <Animated.View style={[st.root, { opacity: out }]}>
+      <StatusBar backgroundColor={C.splash} barStyle="dark-content" />
       <View style={st.center}>
         <View style={{ width: ROW_W, height: LOGO, flexDirection: 'row', alignItems: 'center' }}>
           <Animated.Image
@@ -89,6 +91,7 @@ export default function AnimatedSplash({ ready, onDone }) {
           </View>
         </View>
       </View>
+      <PoweredBy style={st.footer} />
     </Animated.View>
   );
 }
@@ -96,6 +99,7 @@ export default function AnimatedSplash({ ready, onDone }) {
 const st = StyleSheet.create({
   root: { ...StyleSheet.absoluteFillObject, backgroundColor: C.splash, zIndex: 1000, elevation: 50 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  footer: { position: 'absolute', left: 0, right: 0, bottom: 0 },
   name: { fontFamily: F.b, fontSize: 18, color: C.primary },
   rule: { height: 2, width: 34, backgroundColor: C.primary, borderRadius: 1, marginVertical: 5, alignSelf: 'flex-start' },
   tag: { fontFamily: F.m, fontSize: 11.5, color: C.primary },

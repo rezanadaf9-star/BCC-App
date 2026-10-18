@@ -5,10 +5,10 @@ import * as ScreenOrientation from 'expo-screen-orientation';
 import { WebView } from 'react-native-webview';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { Async, Avatar, Btn, Card, Empty, Head, Icon, ListItem, Loading, Page, Pill, Row, Sheet, Label } from '../../components/ui';
-import Discussion from '../../components/Discussion';
+import DiscussionView from '../../components/Discussion';
 import { useApp, useUi } from '../../lib/app';
 import { sb } from '../../lib/supabase';
-import { downloadAndShare, fmtDate, fmtDateTime, isMissingTable, signedUrl, timeAgo, useAsync, youtubeId } from '../../lib/helpers';
+import { downloadAndShare, fmtDate, fmtDateTime, isMissingTable, isToday, signedUrl, timeAgo, todayLabel, useAsync, useDayKey, useRealtimeTables, youtubeId } from '../../lib/helpers';
 import { C, F, R } from '../../theme';
 
 
@@ -31,26 +31,63 @@ function SubjectGrid({ rows, onOpen, unit, blurb }) {
   );
 }
 
+function SectionHead({ title, icon, count, live }) {
+  return (
+    <View style={st.secRow}>
+      <View style={[st.secIcon, live && { backgroundColor: C.alert }]}><Icon name={icon} size={12} color={live ? C.white : C.accent} /></View>
+      <Text style={st.secTitle}>{title}</Text>
+      {count != null && count > 0 && <Pill text={String(count)} active={!live} danger={live} />}
+      <View style={{ flex: 1 }} />
+      {!live && <Text style={st.secDate}>{todayLabel()}</Text>}
+    </View>
+  );
+}
+function TodayEmpty({ icon, text, sub }) {
+  return (
+    <View style={st.todayEmpty}>
+      <View style={st.todayEmptyIc}><Icon name={icon} size={18} /></View>
+      <Text style={st.todayEmptyT}>{text}</Text>
+      {!!sub && <Text style={st.todayEmptyS}>{sub}</Text>}
+    </View>
+  );
+}
+
 /* ----------------------------- Lectures ----------------------------- */
 export function Lectures({ nav }) {
   const { classNo } = useApp();
+  useDayKey(); // refresh "today" at school midnight / on resume
   const q = useAsync(async () => {
     const { data, error } = await sb.from('lectures').select('*,subjects(name)').eq('class_no', classNo)
       .order('is_live', { ascending: false }).order('created_at', { ascending: false });
     if (error) throw error;
     return data || [];
   }, [classNo]);
+  useRealtimeTables(['lectures'], classNo, q.reload);
   return (
     <Page onRefresh={q.reload} refreshing={q.loading && !!q.data}>
-      <Head title="Lectures" sub="Choose a subject to view live and recorded lectures." />
       <Async q={q}>
-        {(rows) => rows.length === 0 ? <Empty icon="video" title="No lectures yet" text="Your class lectures will appear here." /> : (
-          <>
-            <SubjectGrid rows={rows} unit="lecture(s)" blurb="Live & recorded" onOpen={(id) => nav.push('lectures-subject', { subjectId: id })} />
-            <Text style={st.sec}>All Lectures</Text>
-            {rows.map((x) => <LectureRow key={x.id} x={x} nav={nav} />)}
-          </>
-        )}
+        {(rows) => {
+          const live = rows.filter((x) => x.is_live);
+          const today = rows.filter((x) => !x.is_live && isToday(x.created_at));
+          return (
+            <>
+              {live.length > 0 && (
+                <>
+                  <SectionHead title="Live Now" icon="tower-broadcast" count={live.length} live />
+                  {live.map((x) => <LectureRow key={`l${x.id}`} x={x} nav={nav} />)}
+                </>
+              )}
+              <SectionHead title="Today's Lectures" icon="video" count={today.length} />
+              {today.length ? today.map((x) => <LectureRow key={x.id} x={x} nav={nav} />) : <TodayEmpty icon="video" text="No lectures today" sub="New lectures appear here automatically." />}
+              {rows.length === 0 ? <Empty icon="video" title="No lectures yet" text="Your class lectures will appear here." /> : (
+                <>
+                  <Text style={st.chooseText}>Choose a subject to view live and recorded lectures.</Text>
+                  <SubjectGrid rows={rows} unit="lecture(s)" blurb="Live & recorded" onOpen={(id) => nav.push('lectures-subject', { subjectId: id })} />
+                </>
+              )}
+            </>
+          );
+        }}
       </Async>
     </Page>
   );
@@ -74,6 +111,7 @@ export function LecturesSubject({ params, nav }) {
     if (error) throw error;
     return data || [];
   }, [params.subjectId]);
+  useRealtimeTables(['lectures'], classNo, q.reload);
   return (
     <Page onRefresh={q.reload}>
       <Async q={q}>
@@ -175,10 +213,11 @@ export function LecturePlayer({ params, nav }) {
           )}
         </View>
       </View>
-      {!full && (
-        <Page>
-          {!!x && (
-            <>
+      {!full && !!x && (
+        <DiscussionView
+          lectureId={x.id}
+          header={(
+            <View style={{ paddingTop: 12 }}>
               <Text style={st.vTitle}>{x.title}</Text>
               <Row style={{ marginVertical: 8 }}>
                 <Pill text={x.subjects?.name || 'Subject'} />
@@ -189,10 +228,9 @@ export function LecturePlayer({ params, nav }) {
               {x.downloadable && x.file_path && (
                 <Btn kind="yellow" icon="download" label="Download lecture" style={{ marginTop: 12 }} onPress={() => downloadAndShare(x.file_path, x.title).catch((e) => toast(e.message, 'error'))} />
               )}
-              <Discussion lectureId={x.id} />
-            </>
+            </View>
           )}
-        </Page>
+        />
       )}
     </View>
   );
@@ -227,18 +265,44 @@ export function FileViewer({ visible, onClose, title, path, type }) {
 }
 
 /* ----------------------------- Notes ----------------------------- */
+function NoteItem({ x, onOpen, toast, showSubject }) {
+  return (
+    <ListItem title={x.title} sub={`${showSubject ? `${x.subjects?.name || 'Subject'} • ` : ''}${String(x.file_type || 'file').toUpperCase()} • ${fmtDate(x.created_at)}`}
+      left={<View style={st.play}><Icon name={String(x.file_type).includes('pdf') ? 'file-pdf' : 'file-image'} size={15} color={C.white} /></View>}
+      right={<Pressable hitSlop={10} onPress={() => downloadAndShare(x.file_path, x.title).catch((e) => toast(e.message, 'error'))}><Icon name="download" size={15} /></Pressable>}
+      onPress={() => onOpen(x)} />
+  );
+}
 export function Notes({ nav }) {
   const { classNo } = useApp();
+  const { toast } = useUi();
+  const [open, setOpen] = useState(null);
+  useDayKey();
   const q = useAsync(async () => {
     const { data, error } = await sb.from('notes').select('*,subjects(name)').eq('class_no', classNo).order('created_at', { ascending: false });
     if (error) throw error;
     return data || [];
   }, [classNo]);
+  useRealtimeTables(['notes'], classNo, q.reload);
   return (
     <Page onRefresh={q.reload} refreshing={q.loading && !!q.data}>
-      <Head title="Notes" sub="Open PDFs and images without leaving the app." />
       <Async q={q}>
-        {(rows) => rows.length ? <SubjectGrid rows={rows} unit="file(s)" blurb="Lecture notes" onOpen={(id) => nav.push('notes-subject', { subjectId: id })} /> : <Empty icon="note-sticky" title="No notes yet" text="Your class notes will appear here." />}
+        {(rows) => {
+          const today = rows.filter((x) => isToday(x.created_at));
+          return (
+            <>
+              <SectionHead title="Today's Notes" icon="note-sticky" count={today.length} />
+              {today.length ? today.map((x) => <NoteItem key={x.id} x={x} showSubject onOpen={setOpen} toast={toast} />) : <TodayEmpty icon="note-sticky" text="No new notes today" sub="New study material appears here automatically." />}
+              {rows.length === 0 ? <Empty icon="note-sticky" title="No notes yet" text="Your class notes will appear here." /> : (
+                <>
+                  <Text style={st.chooseText}>Choose a subject to open PDFs and images without leaving the app.</Text>
+                  <SubjectGrid rows={rows} unit="file(s)" blurb="Lecture notes" onOpen={(id) => nav.push('notes-subject', { subjectId: id })} />
+                </>
+              )}
+              <FileViewer visible={!!open} onClose={() => setOpen(null)} title={open?.title} path={open?.file_path} type={open?.file_type} />
+            </>
+          );
+        }}
       </Async>
     </Page>
   );
@@ -252,18 +316,14 @@ export function NotesSubject({ params }) {
     if (error) throw error;
     return data || [];
   }, [params.subjectId]);
+  useRealtimeTables(['notes'], classNo, q.reload);
   return (
     <Page onRefresh={q.reload}>
       <Async q={q}>
         {(rows) => (
           <>
             <Head title={rows[0]?.subjects?.name || 'Notes'} sub="Open or download a note." />
-            {rows.length ? rows.map((x) => (
-              <ListItem key={x.id} title={x.title} sub={`${String(x.file_type || 'file').toUpperCase()} • ${fmtDate(x.created_at)}`}
-                left={<View style={st.play}><Icon name={String(x.file_type).includes('pdf') ? 'file-pdf' : 'file-image'} size={15} color={C.white} /></View>}
-                right={<Pressable hitSlop={10} onPress={() => downloadAndShare(x.file_path, x.title).catch((e) => toast(e.message, 'error'))}><Icon name="download" size={15} /></Pressable>}
-                onPress={() => setOpen(x)} />
-            )) : <Empty icon="note-sticky" title="No notes yet" />}
+            {rows.length ? rows.map((x) => <NoteItem key={x.id} x={x} onOpen={setOpen} toast={toast} />) : <Empty icon="note-sticky" title="No notes yet" />}
             <FileViewer visible={!!open} onClose={() => setOpen(null)} title={open?.title} path={open?.file_path} type={open?.file_type} />
           </>
         )}
@@ -273,18 +333,52 @@ export function NotesSubject({ params }) {
 }
 
 /* ----------------------------- Homework ----------------------------- */
+function HomeworkItem({ x, onOpen, toast, showSubject }) {
+  return (
+    <Card>
+      {showSubject && <View style={{ alignSelf: 'flex-start', marginBottom: 6 }}><Pill text={x.subjects?.name || 'Subject'} /></View>}
+      <Text style={st.vTitle}>{x.title}</Text>
+      <Text style={st.vDesc}>{x.instructions || 'No extra instructions.'}</Text>
+      <Label style={{ marginTop: 8 }}>Posted {fmtDate(x.created_at)}{x.due_date ? ` • Due ${fmtDate(x.due_date)}` : ''}</Label>
+      {!!x.file_path && (
+        <Row style={{ marginTop: 12 }}>
+          <Btn small label="Open file" icon="eye" onPress={() => onOpen(x)} />
+          <Btn small kind="ghost" label="Download" icon="download" onPress={() => downloadAndShare(x.file_path, x.title).catch((e) => toast(e.message, 'error'))} />
+        </Row>
+      )}
+    </Card>
+  );
+}
 export function Homework({ nav }) {
   const { classNo } = useApp();
+  const { toast } = useUi();
+  const [open, setOpen] = useState(null);
+  useDayKey();
   const q = useAsync(async () => {
     const { data, error } = await sb.from('homework').select('*,subjects(name)').eq('class_no', classNo).order('created_at', { ascending: false });
     if (error) throw error;
     return data || [];
   }, [classNo]);
+  useRealtimeTables(['homework'], classNo, q.reload);
   return (
     <Page onRefresh={q.reload} refreshing={q.loading && !!q.data}>
-      <Head title="Homework" sub="Subject-wise homework, PDFs, images and instructions." />
       <Async q={q}>
-        {(rows) => rows.length ? <SubjectGrid rows={rows} unit="item(s)" blurb="Assigned homework" onOpen={(id) => nav.push('homework-subject', { subjectId: id })} /> : <Empty icon="book-open" title="No homework yet" text="Homework will appear here when assigned." />}
+        {(rows) => {
+          const today = rows.filter((x) => isToday(x.created_at)); // published today (not "due today")
+          return (
+            <>
+              <SectionHead title="Today's Homework" icon="book-open" count={today.length} />
+              {today.length ? today.map((x) => <HomeworkItem key={x.id} x={x} showSubject onOpen={setOpen} toast={toast} />) : <TodayEmpty icon="book-open" text="No homework assigned today" sub="New assignments appear here automatically." />}
+              {rows.length === 0 ? <Empty icon="book-open" title="No homework yet" text="Homework will appear here when assigned." /> : (
+                <>
+                  <Text style={st.chooseText}>Choose a subject to view homework, PDFs, images and instructions.</Text>
+                  <SubjectGrid rows={rows} unit="item(s)" blurb="Assigned homework" onOpen={(id) => nav.push('homework-subject', { subjectId: id })} />
+                </>
+              )}
+              <FileViewer visible={!!open} onClose={() => setOpen(null)} title={open?.title} path={open?.file_path} />
+            </>
+          );
+        }}
       </Async>
     </Page>
   );
@@ -298,25 +392,14 @@ export function HomeworkSubject({ params }) {
     if (error) throw error;
     return data || [];
   }, [params.subjectId]);
+  useRealtimeTables(['homework'], classNo, q.reload);
   return (
     <Page onRefresh={q.reload}>
       <Async q={q}>
         {(rows) => (
           <>
             <Head title={rows[0]?.subjects?.name || 'Homework'} sub="Instructions and attached files." />
-            {rows.length ? rows.map((x) => (
-              <Card key={x.id}>
-                <Text style={st.vTitle}>{x.title}</Text>
-                <Text style={st.vDesc}>{x.instructions || 'No extra instructions.'}</Text>
-                <Label style={{ marginTop: 8 }}>Posted {fmtDate(x.created_at)}{x.due_date ? ` • Due ${fmtDate(x.due_date)}` : ''}</Label>
-                {!!x.file_path && (
-                  <Row style={{ marginTop: 12 }}>
-                    <Btn small label="Open file" icon="eye" onPress={() => setOpen(x)} />
-                    <Btn small kind="ghost" label="Download" icon="download" onPress={() => downloadAndShare(x.file_path, x.title).catch((e) => toast(e.message, 'error'))} />
-                  </Row>
-                )}
-              </Card>
-            )) : <Empty icon="book-open" title="No homework yet" />}
+            {rows.length ? rows.map((x) => <HomeworkItem key={x.id} x={x} onOpen={setOpen} toast={toast} />) : <Empty icon="book-open" title="No homework yet" />}
             <FileViewer visible={!!open} onClose={() => setOpen(null)} title={open?.title} path={open?.file_path} />
           </>
         )}
@@ -378,6 +461,15 @@ export function NotebookLM() {
 }
 
 const st = StyleSheet.create({
+  secRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4, marginBottom: 10 },
+  secIcon: { width: 24, height: 24, borderRadius: 8, backgroundColor: C.primary, alignItems: 'center', justifyContent: 'center' },
+  secTitle: { fontFamily: F.b, fontSize: 16, color: C.primary },
+  secDate: { fontFamily: F.m, fontSize: 11, color: C.grey },
+  chooseText: { fontFamily: F.r, fontSize: 12.5, color: C.grey, marginTop: 14, marginBottom: 12 },
+  todayEmpty: { alignItems: 'center', backgroundColor: C.white, borderRadius: R.md, paddingVertical: 20, paddingHorizontal: 16, borderWidth: 1, borderColor: C.line, borderStyle: 'dashed', marginBottom: 6 },
+  todayEmptyIc: { width: 44, height: 44, borderRadius: 22, backgroundColor: C.soft, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
+  todayEmptyT: { fontFamily: F.s, fontSize: 14, color: C.primary },
+  todayEmptyS: { fontFamily: F.r, fontSize: 11.5, color: C.grey, marginTop: 2, textAlign: 'center' },
   shield: { position: 'absolute', backgroundColor: 'transparent' },
   fsBtn: { position: 'absolute', right: 10, width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center' },
   cHead: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },

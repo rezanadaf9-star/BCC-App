@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Async, Card, Empty, Head, Icon, ListItem, Page, Pill, Row, Label } from '../../components/ui';
-import Discussion from '../../components/Discussion';
+import DiscussionView from '../../components/Discussion';
 import { useApp } from '../../lib/app';
 import { sb } from '../../lib/supabase';
 import { fmtDateTime, isMissingTable, useAsync } from '../../lib/helpers';
@@ -52,22 +52,21 @@ export function LectureDiscussion({ params }) {
     if (error) throw error;
     return data;
   }, [params.lectureId]);
+  if (!q.data) return <Async q={q}>{() => null}</Async>;
+  const x = q.data;
   return (
-    <Page onRefresh={q.reload}>
-      <Async q={q}>
-        {(x) => (
-          <>
-            <Card>
-              <Text style={st.t}>{x.title}</Text>
-              <Row style={{ marginVertical: 8 }}><Pill text={`Class ${x.class_no}`} /><Pill text={x.subjects?.name || 'Subject'} /></Row>
-              <Label>{fmtDateTime(x.created_at)}</Label>
-              {!!x.description && <Text style={st.d}>{x.description}</Text>}
-            </Card>
-            <Discussion lectureId={x.id} moderator />
-          </>
-        )}
-      </Async>
-    </Page>
+    <DiscussionView
+      lectureId={x.id}
+      moderator
+      header={(
+        <Card>
+          <Text style={st.t}>{x.title}</Text>
+          <Row style={{ marginVertical: 8 }}><Pill text={`Class ${x.class_no}`} /><Pill text={x.subjects?.name || 'Subject'} /></Row>
+          <Label>{fmtDateTime(x.created_at)}</Label>
+          {!!x.description && <Text style={st.d}>{x.description}</Text>}
+        </Card>
+      )}
+    />
   );
 }
 

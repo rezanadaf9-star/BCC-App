@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import { Animated, BackHandler, Text, View, ActivityIndicator, StyleSheet } from 'react-native';
 import { sb } from './supabase';
 import { authEmail } from './helpers';
+import { registerDeviceSession, logoutDeviceSession } from './session';
 import { C, F, R } from '../theme';
 
 /* ============================== Session / profile ============================== */
@@ -45,11 +46,13 @@ export function AppProvider({ children, onReady }) {
         if (data.session) {
           setSession(data.session);
           await withTimeout(loadIdentity(data.session.user.id), 8000);
+          const reg = await withTimeout(registerDeviceSession(), 6000).catch(() => 'error');
+          if (reg === 'revoked') throw new Error('session-replaced'); // this phone was replaced by a newer login
         }
       } catch (e) {
         // Slow/offline network: open the login screen instead of hanging. Keep the saved session
         // unless Supabase explicitly rejected it.
-        if (e?.message !== 'timeout') { try { await sb.auth.signOut(); } catch (_) {} }
+        if (e?.message !== 'timeout') { try { await sb.auth.signOut({ scope: 'local' }); } catch (_) {} }
         setSession(null); setProfile(null); setStudent(null); setClasses([]);
       } finally {
         setBooting(false);
@@ -71,15 +74,24 @@ export function AppProvider({ children, onReady }) {
       if (!p) throw new Error('Your account exists, but its BCC profile is missing.');
       if (portal === 'student' && p.role !== 'student') throw new Error('This ID is not a student account.');
       if (portal === 'teacher' && !['teacher', 'admin'].includes(p.role)) throw new Error('This ID is not a teacher account.');
+      const reg = await registerDeviceSession(); // older Android session of this account is revoked on the server
+      if (reg === 'revoked') throw new Error('Login failed. Please try again.');
       setSession(data.session);
     } catch (e) {
-      await sb.auth.signOut();
+      try { await sb.auth.signOut({ scope: 'local' }); } catch (_) {}
       throw e;
     }
   }, [loadIdentity]);
 
   const signOut = useCallback(async () => {
-    try { await sb.auth.signOut(); } catch (_) {}
+    await Promise.race([logoutDeviceSession(), new Promise((r) => setTimeout(r, 3000))]);
+    try { await sb.auth.signOut({ scope: 'local' }); } catch (_) {} // local scope: other devices stay signed in
+    setSession(null); setProfile(null); setStudent(null); setClasses([]);
+  }, []);
+
+  /** This phone was replaced by a newer login: clear everything and go back to the login screen (no warning). */
+  const forceSignOut = useCallback(async () => {
+    try { await sb.auth.signOut({ scope: 'local' }); } catch (_) {}
     setSession(null); setProfile(null); setStudent(null); setClasses([]);
   }, []);
 
@@ -95,8 +107,8 @@ export function AppProvider({ children, onReady }) {
     isAdmin: profile?.role === 'admin',
     isTeacher: profile?.role === 'teacher',
     isStaff: !!profile && profile.role !== 'student',
-    signIn, signOut, refreshProfile,
-  }), [session, profile, student, classes, booting, signIn, signOut, refreshProfile]);
+    signIn, signOut, forceSignOut, refreshProfile,
+  }), [session, profile, student, classes, booting, signIn, signOut, forceSignOut, refreshProfile]);
 
   return <AppCtx.Provider value={value}>{children}</AppCtx.Provider>;
 }
