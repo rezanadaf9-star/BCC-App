@@ -170,7 +170,7 @@ const Row = memo(function Row({ item, names, avatarUrl, myId, myPhoto, moderator
 });
 
 /* ---------------- the whole discussion screen ---------------- */
-export default function DiscussionView({ lectureId, moderator = false, header = null }) {
+export default function DiscussionView({ lectureId, moderator = false, header = null, stickyLectureHeader = false }) {
   const { profile } = useApp();
   const { toast } = useUi();
   const myPhoto = useMyPhoto();
@@ -328,11 +328,11 @@ export default function DiscussionView({ lectureId, moderator = false, header = 
   ) : null;
 
   const listHeader = (
-    <View>
+    <View style={stickyLectureHeader ? { backgroundColor: C.bg, zIndex: 5, elevation: 5 } : null}>
       {header}
-      <View style={st.discHead}><Icon name="comments" size={15} /><Text style={st.discTitle}>Discussion</Text><Pill text={String(rows.length)} /></View>
-      <Text style={st.hint}>{moderator ? 'Reply to students and moderate comments.' : 'Everyone in your class can see these comments. Teachers will reply to doubts.'}</Text>
-      {mainComposer}
+      <View style={[st.discHead, stickyLectureHeader && { marginHorizontal: 16 }]}><Icon name="comments" size={15} /><Text style={st.discTitle}>Discussion</Text><Pill text={String(rows.length)} /></View>
+      <Text style={[st.hint, stickyLectureHeader && { marginHorizontal: 16 }]}>{moderator ? 'Reply to students and moderate comments.' : 'Everyone in your class can see these comments. Teachers will reply to doubts.'}</Text>
+      {stickyLectureHeader ? <View style={{ marginHorizontal: 16 }}>{mainComposer}</View> : mainComposer}
     </View>
   );
 
@@ -345,11 +345,12 @@ export default function DiscussionView({ lectureId, moderator = false, header = 
         ref={listRef}
         data={items}
         keyExtractor={(it) => it.key}
-        renderItem={renderItem}
+        renderItem={stickyLectureHeader ? (props) => <View style={{ paddingHorizontal: 16 }}>{renderItem(props)}</View> : renderItem}
         extraData={[replyTo?.id, draft, expanded, avatarMap, sending]}
         ListHeaderComponent={listHeader}
+        stickyHeaderIndices={stickyLectureHeader ? [0] : undefined}
         ListEmptyComponent={q.loading && !q.data ? <Loading /> : <Text style={[st.hint, { textAlign: 'center', marginTop: 14 }]}>No comments yet. Be the first to comment.</Text>}
-        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}
+        contentContainerStyle={{ paddingHorizontal: stickyLectureHeader ? 0 : 16, paddingBottom: 24 }}
         keyboardShouldPersistTaps="handled"
         initialNumToRender={10}
         maxToRenderPerBatch={10}

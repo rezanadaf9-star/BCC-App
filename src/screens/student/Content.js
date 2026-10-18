@@ -135,6 +135,7 @@ export function LecturePlayer({ params, nav }) {
   const { toast } = useUi();
   const { width, height } = useWindowDimensions();
   const [fs, setFs] = useState(false);
+  const [youtubePlaying, setYoutubePlaying] = useState(false);
   const full = fs || width > height; // rotating the phone to landscape = full screen
   const q = useAsync(async () => {
     const { data, error } = await sb.from('lectures').select('*,subjects(name)').eq('id', params.lectureId).single();
@@ -166,11 +167,18 @@ export function LecturePlayer({ params, nav }) {
 
   const x = q.data?.x;
   const yt = youtubeId(x?.youtube_url || '');
-  const playerH = (width - 32) * 0.5625;
+  const playerH = width * 0.5625;
 
   const media = !q.data ? (q.error ? <Empty icon="triangle-exclamation" title="Could not load lecture" text={q.error.message} /> : <Loading />)
     : x.youtube_url ? (
-      yt ? (
+      yt ? (!youtubePlaying ? (
+        <Pressable onPress={() => setYoutubePlaying(true)} style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#000' }}>
+          <Image source={{ uri: `https://i.ytimg.com/vi/${yt}/hqdefault.jpg` }} resizeMode="cover" style={{ width: '100%', height: '100%', position: 'absolute' }} />
+          <View style={{ width: 70, height: 48, borderRadius: 14, backgroundColor: '#ff0033', alignItems: 'center', justifyContent: 'center' }}>
+            <Icon name="play" size={24} color="#fff" />
+          </View>
+        </Pressable>
+      ) : (
         <>
         <WebView
           allowsFullscreenVideo={false}
@@ -190,48 +198,52 @@ export function LecturePlayer({ params, nav }) {
           // https base URL avoids YouTube's "error 153" inside WebViews. fs=0 hides YouTube's own full-screen button (ours handles landscape).
           source={{
             baseUrl: 'https://rezanadaf9-star.github.io/',
-            html: `<html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:#000"><iframe width="100%" height="100%" style="border:0;position:absolute;inset:0" src="https://www.youtube.com/embed/${encodeURIComponent(yt)}?rel=0&playsinline=1&fs=0&modestbranding=1&iv_load_policy=3&disablekb=1" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"></iframe></body></html>`,
+            html: `<html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:#000"><iframe width="100%" height="100%" style="border:0;position:absolute;inset:0" src="https://www.youtube.com/embed/${encodeURIComponent(yt)}?autoplay=1&rel=0&playsinline=1&fs=0&modestbranding=1&iv_load_policy=3&disablekb=1" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"></iframe></body></html>`,
  }}
         />
         <View pointerEvents="auto" style={[st.shield, { top: 0, left: 0, right: 120, height: 58 }]} />
         <View pointerEvents="auto" style={[st.shield, { bottom: 0, right: 0, width: 112, height: 40 }]} />
         <View pointerEvents="auto" style={[st.shield, { bottom: 0, left: 0, width: 64, height: 48 }]} />
         </>
-      ) : <Empty icon="link-slash" title="Invalid YouTube URL" text="The teacher configured an invalid link." />
+      )) : <Empty icon="link-slash" title="Invalid YouTube URL" text="The teacher configured an invalid link." />
     ) : q.data.file ? <FileVideo url={q.data.file} />
       : <Empty icon="video-slash" title="No lecture media" text="No lecture media has been attached yet." />;
 
+  const videoBlock = (
+    <View style={full ? { flex: 1, backgroundColor: '#000' } : { height: playerH, backgroundColor: '#000', overflow: 'hidden' }}>
+      {media}
+      {!!q.data && (q.data.file || yt) && (
+        <Pressable onPress={full ? exitFs : enterFs} hitSlop={8} style={[st.fsBtn, q.data.file ? { top: 10 } : { bottom: 10 }]}>
+          <Icon name={full ? 'compress' : 'expand'} size={14} color={C.white} />
+        </Pressable>
+      )}
+    </View>
+  );
   return (
     <View style={{ flex: 1, backgroundColor: full ? '#000' : C.bg }}>
-      <View style={full ? { flex: 1 } : { paddingHorizontal: 16, paddingTop: 4 }}>
-        <View style={full ? { flex: 1, backgroundColor: '#000' } : { height: playerH, borderRadius: R.md, overflow: 'hidden', backgroundColor: '#000' }}>
-          {media}
-          {!!q.data && (q.data.file || yt) && (
-            <Pressable onPress={full ? exitFs : enterFs} hitSlop={8} style={[st.fsBtn, q.data.file ? { top: 10 } : { bottom: 10 }]}>
-              <Icon name={full ? 'compress' : 'expand'} size={14} color={C.white} />
-            </Pressable>
-          )}
-        </View>
-      </View>
-      {!full && !!x && (
+      {full ? videoBlock : !!x ? (
         <DiscussionView
           lectureId={x.id}
+          stickyLectureHeader
           header={(
-            <View style={{ paddingTop: 12 }}>
-              <Text style={st.vTitle}>{x.title}</Text>
-              <Row style={{ marginVertical: 8 }}>
-                <Pill text={x.subjects?.name || 'Subject'} />
-                <Pill text={x.is_live ? 'Live lecture' : 'Recorded lecture'} active={x.is_live} />
-              </Row>
-              <Label>{fmtDateTime(x.created_at)}</Label>
-              {!!x.description && <Text style={st.vDesc}>{x.description}</Text>}
-              {x.downloadable && x.file_path && (
-                <Btn kind="yellow" icon="download" label="Download lecture" style={{ marginTop: 12 }} onPress={() => downloadAndShare(x.file_path, x.title).catch((e) => toast(e.message, 'error'))} />
-              )}
+            <View style={{ backgroundColor: C.bg }}>
+              {videoBlock}
+              <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
+                <Text style={st.vTitle}>{x.title}</Text>
+                <Row style={{ marginVertical: 8 }}>
+                  <Pill text={x.subjects?.name || 'Subject'} />
+                  <Pill text={x.is_live ? 'Live lecture' : 'Recorded lecture'} active={x.is_live} />
+                </Row>
+                <Label>{fmtDateTime(x.created_at)}</Label>
+                {!!x.description && <Text style={st.vDesc}>{x.description}</Text>}
+                {x.downloadable && x.file_path && (
+                  <Btn kind="yellow" icon="download" label="Download lecture" style={{ marginTop: 12 }} onPress={() => downloadAndShare(x.file_path, x.title).catch((e) => toast(e.message, 'error'))} />
+                )}
+              </View>
             </View>
           )}
         />
-      )}
+      ) : videoBlock}
     </View>
   );
 }
