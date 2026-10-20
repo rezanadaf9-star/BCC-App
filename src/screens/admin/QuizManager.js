@@ -20,7 +20,7 @@ export function QuizManager() {
     ]);
     if (qz.error) throw qz.error;
     return { quizzes: qz.data || [], subjects: subs.flat() };
-  }, [classes.join(',')]);
+  }, [classes.join(',')], { key: `quizmgr:${classes.join(',')}` });
 
   const del = (x) => Alert.alert('Delete quiz?', 'Its questions and submitted attempts will also be deleted.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Delete', style: 'destructive', onPress: async () => {
     loading(true, 'Deleting quiz...');

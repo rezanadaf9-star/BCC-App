@@ -24,7 +24,7 @@ export function StudentMarks({ nav, params }) {
     let rows = [];
     if (latest) rows = await fetchAcademicExamLeaderboard(latest.id);
     return { exams, declared, latest, rows, me: rows.find((r) => r.student_id === profile.id) || null };
-  }, [classNo]);
+  }, [classNo], { key: `marks:${classNo}` });
 
   const openedFor = useRef(null);
   const openDetail = async (exam) => {
@@ -124,7 +124,7 @@ export function StudentAcademicLeaderboard({ params, nav }) {
     if (error) throw error;
     if (!exam.result_declared) throw new Error('This result has not been declared yet.');
     return { exam, rows: await fetchAcademicExamLeaderboard(params.examId) };
-  }, [params.examId]);
+  }, [params.examId], { key: `examlb:${params.examId}` });
   return (
     <Page onRefresh={q.reload}>
       <Async q={q}>
@@ -170,7 +170,7 @@ export function StudentLeaderboard() {
     }
     const cumRows = await addPhotoUrls(cum.data || []);
     return { cumRows, hist: hist.data || [], latestQuiz, latestRows, size: size.count ?? cumRows.length };
-  }, [classNo]);
+  }, [classNo], { key: `lb:${classNo}` });
 
   return (
     <Page onRefresh={q.reload} refreshing={q.loading && !!q.data}>

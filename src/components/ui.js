@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator, Image, KeyboardAvoidingView, Modal, Platform, Pressable, RefreshControl,
+  ActivityIndicator, Animated, Image, KeyboardAvoidingView, Modal, Platform, Pressable, RefreshControl,
   ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { FontAwesome6 } from '@expo/vector-icons';
@@ -198,9 +198,35 @@ export const Loading = ({ text }) => (
   </View>
 );
 
+/** Soft pulsing placeholder cards: the screen looks "ready" immediately instead of showing a spinner. */
+export function SkeletonList({ n = 4 }) {
+  const a = useRef(new Animated.Value(0.5)).current;
+  useEffect(() => {
+    const loop = Animated.loop(Animated.sequence([
+      Animated.timing(a, { toValue: 1, duration: 650, useNativeDriver: true }),
+      Animated.timing(a, { toValue: 0.5, duration: 650, useNativeDriver: true }),
+    ]));
+    loop.start();
+    return () => loop.stop();
+  }, []);
+  return (
+    <Animated.View style={{ opacity: a }}>
+      {Array.from({ length: n }).map((_, i) => (
+        <View key={i} style={s.skel}>
+          <View style={s.skelIc} />
+          <View style={{ flex: 1 }}>
+            <View style={[s.skelLine, { width: '72%' }]} />
+            <View style={[s.skelLine, { width: '46%', height: 10, marginTop: 9 }]} />
+          </View>
+        </View>
+      ))}
+    </Animated.View>
+  );
+}
+
 /** Renders loading / error / content from a useAsync result. */
 export function Async({ q, children }) {
-  if (q.loading && !q.data) return <Loading />;
+  if (q.loading && !q.data) return <SkeletonList />;
   if (q.error && !q.data)
     return (
       <View>
@@ -325,6 +351,9 @@ export function RankList({ rows, currentId, academic, admin }) {
 }
 
 const s = StyleSheet.create({
+  skel: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: C.white, borderRadius: R.md, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: 'rgba(27,20,100,0.05)' },
+  skelIc: { width: 42, height: 42, borderRadius: 12, backgroundColor: C.lav },
+  skelLine: { height: 13, borderRadius: 7, backgroundColor: C.lav },
   card: { backgroundColor: C.white, borderRadius: R.md, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: 'rgba(27,20,100,0.05)', ...shadow },
   barTrack: { height: 6, borderRadius: 3, backgroundColor: 'rgba(27,20,100,0.12)', overflow: 'hidden' },
   barFill: { height: 6, borderRadius: 3 },

@@ -197,14 +197,14 @@ export default function DiscussionView({ lectureId, moderator = false, header = 
     }
     if (res.error) { if (isMissingTable(res.error)) return { missing: true, flat, rows: [] }; throw res.error; }
     return { missing: false, flat, rows: res.data || [] };
-  }, [lectureId]);
+  }, [lectureId], { key: `comments:${lectureId}` });
 
   useEffect(() => { if (q.data) setRows(q.data.rows); }, [q.data]);
 
   // live updates from other students / teachers
   useEffect(() => {
     const ch = sb.channel(`disc-${lectureId}-${Math.random().toString(36).slice(2, 7)}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'lecture_comments', filter: `lecture_id=eq.${lectureId}` }, () => q.reload())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'lecture_comments', filter: `lecture_id=eq.${lectureId}` }, () => q.refresh())
       .subscribe();
     return () => { try { sb.removeChannel(ch); } catch (_) {} };
   }, [lectureId]);

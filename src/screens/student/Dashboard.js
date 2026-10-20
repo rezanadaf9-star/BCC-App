@@ -51,7 +51,7 @@ export default function Dashboard({ nav }) {
       lec: get('lec')?.count ?? 0, notes: get('notes')?.count ?? 0, hw: get('hw')?.count ?? 0, ai: get('ai')?.count ?? 0,
       latestLec: rows('rLec')[0] || null, quizzes, pending, me, boardSize: board.length, exam: get('exam'), updates,
     };
-  }, [classNo]);
+  }, [classNo], { key: `dash:${classNo}` });
 
   const open = (u) => {
     if (u.kind === 'lecture') nav.push('lecture-player', { lectureId: u.id });

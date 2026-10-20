@@ -29,7 +29,7 @@ export function Quizzes({ nav }) {
     if (error) throw error;
     const at = await sb.from('quiz_attempts').select('quiz_id,score,total_marks,submitted_at').eq('student_id', profile.id);
     return { rows: data || [], done: new Map((at.data || []).map((a) => [a.quiz_id, a])) };
-  }, [classNo]);
+  }, [classNo], { key: `quizzes:${classNo}` });
 
   const start = (x) => {
     if (x.start_at && new Date(x.start_at) > new Date()) return toast('This quiz has not started yet.', 'error');

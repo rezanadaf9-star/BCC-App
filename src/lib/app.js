@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, BackHandler, Text, View, ActivityIndicator, StyleSheet } from 'react-native';
 import { sb } from './supabase';
-import { authEmail } from './helpers';
+import { authEmail, clearAsyncCache } from './helpers';
 import { registerDeviceSession, logoutDeviceSession } from './session';
 import { C, F, R } from '../theme';
 
@@ -86,12 +86,14 @@ export function AppProvider({ children, onReady }) {
   const signOut = useCallback(async () => {
     await Promise.race([logoutDeviceSession(), new Promise((r) => setTimeout(r, 3000))]);
     try { await sb.auth.signOut({ scope: 'local' }); } catch (_) {} // local scope: other devices stay signed in
+    clearAsyncCache();
     setSession(null); setProfile(null); setStudent(null); setClasses([]);
   }, []);
 
   /** This phone was replaced by a newer login: clear everything and go back to the login screen (no warning). */
   const forceSignOut = useCallback(async () => {
     try { await sb.auth.signOut({ scope: 'local' }); } catch (_) {}
+    clearAsyncCache();
     setSession(null); setProfile(null); setStudent(null); setClasses([]);
   }, []);
 

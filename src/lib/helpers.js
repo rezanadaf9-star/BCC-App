@@ -37,25 +37,35 @@ export function greeting() {
   return h < 12 ? 'Good Morning' : h < 17 ? 'Good Afternoon' : 'Good Evening';
 }
 
-/* ---------- storage / photos ---------- */
+/* ---------- storage / photos (signed URLs are cached, so photos and files open instantly the 2nd time) ---------- */
+const SIGNED = new Map(); // "bucket:path" -> { url, exp }
+const cachedUrl = (k) => { const c = SIGNED.get(k); return c && c.exp > Date.now() ? c.url : null; };
+const putUrl = (k, url, seconds) => { if (url) SIGNED.set(k, { url, exp: Date.now() + Math.max(30000, seconds * 800) }); };
+
 export async function addPhotoUrls(rows) {
   const list = rows || [];
   const paths = [...new Set(list.map((r) => r.photo_path).filter(Boolean))];
   if (!paths.length) return list;
   try {
-    const { data, error } = await sb.storage.from('student-photos').createSignedUrls(paths, 3600);
-    if (error) throw error;
-    const map = new Map(paths.map((p, i) => [p, data?.[i]?.signedUrl || '']));
-    return list.map((r) => ({ ...r, photo_url: map.get(r.photo_path) || '' }));
+    const missing = paths.filter((p) => !cachedUrl(`p:${p}`));
+    if (missing.length) {
+      const { data, error } = await sb.storage.from('student-photos').createSignedUrls(missing, 3600);
+      if (error) throw error;
+      missing.forEach((p, i) => putUrl(`p:${p}`, data?.[i]?.signedUrl, 3600));
+    }
+    return list.map((r) => ({ ...r, photo_url: cachedUrl(`p:${r.photo_path}`) || '' }));
   } catch (e) {
-    return list;
+    return list.map((r) => ({ ...r, photo_url: cachedUrl(`p:${r.photo_path}`) || '' }));
   }
 }
 export async function studentPhotoUrl(path) {
   if (!path) return '';
+  const hit = cachedUrl(`p:${path}`);
+  if (hit) return hit;
   try {
     const { data, error } = await sb.storage.from('student-photos').createSignedUrl(path, 3600);
     if (error) throw error;
+    putUrl(`p:${path}`, data?.signedUrl, 3600);
     return data?.signedUrl || '';
   } catch (e) {
     return '';
@@ -63,10 +73,15 @@ export async function studentPhotoUrl(path) {
 }
 export async function signedUrl(path, seconds = 3600) {
   if (!path) return null;
+  const hit = cachedUrl(`c:${path}`);
+  if (hit && seconds >= 3600) return hit;
   const { data, error } = await sb.storage.from('bcc-content').createSignedUrl(path, seconds);
   if (error) return null;
+  if (seconds >= 3600) putUrl(`c:${path}`, data?.signedUrl, seconds);
   return data?.signedUrl || null;
 }
+/** read-through cache lookup without a network call (used to start video players before the page finishes loading) */
+export const peekSignedUrl = (path) => cachedUrl(`c:${path}`);
 
 /**
  * Upload a local file (uri from a picker) to a Supabase bucket.
@@ -189,28 +204,47 @@ export function parseLocalDateTime(s) {
   return new Date(+m[1], +m[2] - 1, +m[3], +(m[4] || 0), +(m[5] || 0)).toISOString();
 }
 
-/** Tiny data-loading hook: const {data,loading,error,reload} = useAsync(fn, deps) */
-export function useAsync(fn, deps = []) {
-  const [state, setState] = useState({ data: null, loading: true, error: null });
+const MEM = new Map(); // screen data cache: key -> last good data
+/** Forget everything cached (called on logout so the next user never sees old data). */
+export function clearAsyncCache() { MEM.clear(); SIGNED.clear(); }
+
+/**
+ * Data-loading hook with "stale-while-revalidate":
+ *   const q = useAsync(fn, deps, { key, initial })
+ *   - key:     when the screen was visited before, its last data shows INSTANTLY and is refreshed silently in the background
+ *   - initial: data that is already known (e.g. the lecture that was tapped) so the page renders with no spinner
+ *   q.reload()  = visible reload (pull-to-refresh)       q.refresh() = silent reload (realtime updates)
+ */
+export function useAsync(fn, deps = [], opts = {}) {
+  const key = opts.key;
+  const [state, setState] = useState(() => {
+    const cached = key ? MEM.get(key) : undefined;
+    if (cached !== undefined) return { data: cached, loading: false, error: null };
+    if (opts.initial !== undefined && opts.initial !== null) return { data: opts.initial, loading: false, error: null };
+    return { data: null, loading: true, error: null };
+  });
   const alive = useRef(true);
-  const run = useCallback(async () => {
-    setState((s) => ({ ...s, loading: true, error: null }));
+  const hasData = useRef(state.data !== null);
+  hasData.current = state.data !== null;
+  const run = useCallback(async (silent = false) => {
+    if (!silent) setState((s) => ({ ...s, loading: true, error: null }));
     try {
       const data = await fn();
+      if (key) MEM.set(key, data);
       if (alive.current) setState({ data, loading: false, error: null });
     } catch (e) {
-      if (alive.current) setState({ data: null, loading: false, error: e });
+      if (alive.current) setState((s) => (silent && s.data !== null ? s : { data: null, loading: false, error: e }));
     }
     // eslint-disable-next-line
   }, deps);
   useEffect(() => {
     alive.current = true;
-    run();
-    return () => {
-      alive.current = false;
-    };
+    run(hasData.current); // something is already on screen -> refresh quietly
+    return () => { alive.current = false; };
   }, [run]);
-  return { ...state, reload: run };
+  const reload = useCallback(() => run(false), [run]);
+  const refresh = useCallback(() => run(true), [run]);
+  return { ...state, reload, refresh };
 }
 
 export function timeAgo(v) {

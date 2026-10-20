@@ -25,7 +25,7 @@ export function StaffDashboard({ nav }) {
     const out = {};
     keys.forEach((k, i) => { out[k] = res[i].status === 'fulfilled' ? res[i].value?.count ?? 0 : 0; });
     return out;
-  }, [scope.join(',')]);
+  }, [scope.join(',')], { key: `staffdash:${scope.join(',')}` });
 
   const tools = [
     ['users', 'Students', isAdmin ? 'Create accounts and view student information' : 'Review students in your assigned classes', 'students'],

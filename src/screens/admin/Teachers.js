@@ -22,7 +22,7 @@ export function Teachers() {
     const { data, error } = await sb.from('profiles').select('id,full_name,login_id,is_active,created_at,teacher_class_assignments(class_no)').eq('role', 'teacher').order('created_at', { ascending: false });
     if (error) throw error;
     return data || [];
-  }, []);
+  }, [], { key: 'teachers' });
 
   const toggle = (t) => {
     const next = t.is_active === false;

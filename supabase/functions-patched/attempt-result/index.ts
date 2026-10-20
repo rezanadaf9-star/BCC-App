@@ -1,4 +1,28 @@
-import { corsHeaders, json, getClients } from "../_shared/common.ts";
+import { createClient } from "npm:@supabase/supabase-js@2";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS"
+};
+
+function json(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" }
+  });
+}
+
+function getClients(req: Request, fallbackAccessToken = "") {
+  const url = Deno.env.get("SUPABASE_URL") || Deno.env.get("PROJECT_URL")!;
+  const anon = Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_PUBLISHABLE_KEY") || Deno.env.get("PROJECT_ANON_KEY")!;
+  const secret = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SUPABASE_SECRET_KEY") || Deno.env.get("PROJECT_SERVICE_ROLE_KEY")!;
+  const header = req.headers.get("Authorization") || "";
+  const auth = header || (fallbackAccessToken ? `Bearer ${fallbackAccessToken}` : "");
+  const userClient = createClient(url, anon, { global: { headers: { Authorization: auth } } });
+  const adminClient = createClient(url, secret);
+  return { userClient, adminClient };
+}
 
 Deno.serve(async req => {
   if(req.method==="OPTIONS")return new Response("ok",{headers:corsHeaders});
@@ -6,7 +30,7 @@ Deno.serve(async req => {
     const {userClient,adminClient}=getClients(req);
     const {data:auth}=await userClient.auth.getUser();
     if(!auth.user)return json({error:"Unauthorized"},401);
-  {const {data:sOk}=await userClient.rpc("bcc_session_not_revoked");if(sOk===false)return json({error:"This login session was replaced. Please sign in again."},401);}
+    {const {data:sOk}=await userClient.rpc("bcc_session_not_revoked");if(sOk===false)return json({error:"This login session was replaced. Please sign in again."},401);}
     const {data:attempt,error}=await adminClient.from("quiz_attempts").select("*").eq("id",(await req.json()).attempt_id).single();
     if(error||!attempt)return json({error:"Attempt not found."},404);
     if(attempt.student_id!==auth.user.id){

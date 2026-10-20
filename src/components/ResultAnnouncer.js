@@ -1,118 +1,208 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, AppState, Dimensions, Easing, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, AppState, Dimensions, Easing, Image, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Audio } from 'expo-av';
 import { Icon } from './ui';
 import { useApp, useNav } from '../lib/app';
 import { sb } from '../lib/supabase';
-import { C, F, R } from '../theme';
+import { C, F } from '../theme';
 
 const { width: W, height: H } = Dimensions.get('window');
-const CONFETTI = [C.accent, C.primary, '#E11D48', C.success, '#F59E0B', '#FFFFFF'];
+const COLORS = [C.accent, '#FF4D6D', '#2DD4BF', '#7C5CFF', '#FFB020', '#FFFFFF', '#4ADE80'];
 
-/* ------------------------- confetti (one short burst, native-driven) ------------------------- */
-function Confetti({ run }) {
-  const pieces = useMemo(() => Array.from({ length: 34 }, (_, i) => ({
-    key: i,
-    x: Math.random() * W,
-    drift: (Math.random() - 0.5) * 120,
-    size: 6 + Math.random() * 7,
-    delay: Math.random() * 500,
-    dur: 2200 + Math.random() * 1400,
-    spin: (Math.random() > 0.5 ? 1 : -1) * (360 + Math.random() * 540),
-    color: CONFETTI[i % CONFETTI.length],
-    round: i % 3 === 0,
-    v: new Animated.Value(0),
+/* ---------- one confetti piece that flies on a parabola (gravity) ---------- */
+function Piece({ p, t }) {
+  // position(t) = v*t + g*t^2   (t: 0 -> 1)
+  const x = Animated.multiply(t, p.vx);
+  const y = Animated.add(Animated.multiply(t, p.vy), Animated.multiply(Animated.multiply(t, t), p.g));
+  return (
+    <Animated.View
+      style={{
+        position: 'absolute', left: p.x0, top: p.y0, width: p.w, height: p.h, backgroundColor: p.color,
+        borderRadius: p.round ? p.w / 2 : 2,
+        opacity: t.interpolate({ inputRange: [0, 0.04, 0.8, 1], outputRange: [0, 1, 1, 0] }),
+        transform: [{ translateX: x }, { translateY: y }, { rotate: t.interpolate({ inputRange: [0, 1], outputRange: ['0deg', `${p.spin}deg`] }) }],
+      }}
+    />
+  );
+}
+
+/* ---------- confetti rain from the top ---------- */
+function Rain({ run }) {
+  const pieces = useMemo(() => Array.from({ length: 36 }, (_, i) => ({
+    key: i, x0: Math.random() * W, y0: -24, w: 6 + Math.random() * 6, h: i % 2 ? 9 + Math.random() * 9 : 6 + Math.random() * 6,
+    vx: (Math.random() - 0.5) * 160, vy: H * 0.35, g: H * 0.62 + Math.random() * 120, spin: (Math.random() > 0.5 ? 1 : -1) * (300 + Math.random() * 600),
+    color: COLORS[i % COLORS.length], round: i % 3 === 0, delay: 700 + Math.random() * 1200, dur: 2600 + Math.random() * 1400, t: new Animated.Value(0),
   })), []);
   useEffect(() => {
     if (!run) return undefined;
-    const anims = pieces.map((p) => Animated.timing(p.v, { toValue: 1, duration: p.dur, delay: p.delay, easing: Easing.out(Easing.quad), useNativeDriver: true }));
+    const anims = pieces.map((p) => Animated.timing(p.t, { toValue: 1, duration: p.dur, delay: p.delay, easing: Easing.linear, useNativeDriver: true }));
     anims.forEach((a) => a.start());
     return () => anims.forEach((a) => a.stop());
   }, [run]);
+  return <>{pieces.map((p) => <Piece key={p.key} p={p} t={p.t} />)}</>;
+}
+
+/* ---------- a party popper: wiggles, POPS, shoots confetti + streamers ---------- */
+function Popper({ side, run, delay }) {
+  const left = side === 'left';
+  const x0 = left ? 34 : W - 34;
+  const y0 = H - 96;
+  const cone = useRef(new Animated.Value(0)).current;      // wiggle / recoil
+  const flash = useRef(new Animated.Value(0)).current;     // burst flash
+  const pieces = useMemo(() => Array.from({ length: 34 }, (_, i) => {
+    const tilt = 0.2 + Math.random() * 0.65;                    // angle from straight up, leaning towards the screen centre
+    const speed = H * (0.38 + Math.random() * 0.34);
+    const streamer = i % 4 === 0;
+    return {
+      key: i, x0, y0, w: streamer ? 4 : 6 + Math.random() * 6, h: streamer ? 22 + Math.random() * 22 : 6 + Math.random() * 7,
+      vx: (left ? 1 : -1) * Math.sin(tilt) * speed, vy: -Math.cos(tilt) * speed, g: speed * 0.9 + 140,
+      spin: (Math.random() > 0.5 ? 1 : -1) * (360 + Math.random() * 720), color: COLORS[(i + (left ? 0 : 3)) % COLORS.length],
+      round: !streamer && i % 3 === 0, dur: 1700 + Math.random() * 900, t: new Animated.Value(0),
+    };
+  }), []);
+  useEffect(() => {
+    if (!run) return undefined;
+    const wiggle = Animated.sequence([
+      Animated.delay(delay),
+      Animated.timing(cone, { toValue: 1, duration: 160, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+      Animated.spring(cone, { toValue: 0, friction: 3, tension: 160, useNativeDriver: true }),
+    ]);
+    const boom = Animated.sequence([
+      Animated.delay(delay + 160),
+      Animated.parallel([
+        Animated.sequence([Animated.timing(flash, { toValue: 1, duration: 70, useNativeDriver: true }), Animated.timing(flash, { toValue: 0, duration: 360, useNativeDriver: true })]),
+        ...pieces.map((p) => Animated.timing(p.t, { toValue: 1, duration: p.dur, easing: Easing.linear, useNativeDriver: true })),
+      ]),
+    ]);
+    wiggle.start(); boom.start();
+    return () => { wiggle.stop(); boom.stop(); };
+  }, [run]);
   return (
-    <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-      {pieces.map((p) => (
-        <Animated.View
-          key={p.key}
-          style={{
-            position: 'absolute', left: p.x, top: -20, width: p.size, height: p.round ? p.size : p.size * 1.8,
-            borderRadius: p.round ? p.size / 2 : 2, backgroundColor: p.color,
-            opacity: p.v.interpolate({ inputRange: [0, 0.08, 0.85, 1], outputRange: [0, 1, 1, 0] }),
-            transform: [
-              { translateY: p.v.interpolate({ inputRange: [0, 1], outputRange: [0, H * 0.95] }) },
-              { translateX: p.v.interpolate({ inputRange: [0, 1], outputRange: [0, p.drift] }) },
-              { rotate: p.v.interpolate({ inputRange: [0, 1], outputRange: ['0deg', `${p.spin}deg`] }) },
-            ],
-          }}
-        />
-      ))}
-    </View>
+    <>
+      {pieces.map((p) => <Piece key={p.key} p={p} t={p.t} />)}
+      <Animated.View
+        pointerEvents="none"
+        style={{
+          position: 'absolute', left: left ? 4 : W - 68, top: H - 128, width: 64, height: 64, alignItems: 'center', justifyContent: 'center',
+          transform: [{ scaleX: left ? 1 : -1 }, { rotate: cone.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '-14deg'] }) }, { scale: cone.interpolate({ inputRange: [0, 1], outputRange: [1, 0.9] }) }],
+        }}
+      >
+        <Text style={{ fontSize: 46 }}>{'\u{1F389}'}</Text>
+      </Animated.View>
+      <Animated.View
+        pointerEvents="none"
+        style={{ position: 'absolute', left: x0 - 40, top: y0 - 40, width: 80, height: 80, borderRadius: 40, backgroundColor: '#FFF6A8',
+          opacity: flash.interpolate({ inputRange: [0, 1], outputRange: [0, 0.85] }), transform: [{ scale: flash.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1.6] }) }] }}
+      />
+    </>
   );
+}
+
+/* ---------- sound: two pops, then fanfare + applause ---------- */
+function useCelebrationSound(visible) {
+  useEffect(() => {
+    if (!visible) return undefined;
+    let dead = false;
+    const timers = [];
+    const sounds = [];
+    (async () => {
+      try {
+        await Audio.setAudioModeAsync({ playsInSilentModeIOS: true, shouldDuckAndroid: false, staysActiveInBackground: false });
+        const mk = async (src) => { const { sound } = await Audio.Sound.createAsync(src, { shouldPlay: false, volume: 1.0 }); if (dead) { sound.unloadAsync().catch(() => {}); return null; } sounds.push(sound); return sound; };
+        const [p1, p2, fan] = await Promise.all([mk(require('../../assets/popper.wav')), mk(require('../../assets/popper.wav')), mk(require('../../assets/celebration.wav'))]);
+        const at = (sound, ms) => timers.push(setTimeout(() => sound && sound.playFromPositionAsync(0).catch(() => {}), ms));
+        at(p1, 330); at(p2, 560); at(fan, 760); // synced with the two popper bursts
+      } catch (_) { /* sound is optional */ }
+    })();
+    return () => { dead = true; timers.forEach(clearTimeout); sounds.forEach((s) => s.unloadAsync().catch(() => {})); };
+  }, [visible]);
 }
 
 /* ------------------------- the popup card ------------------------- */
 function ResultCard({ visible, exam, classNo, onView, onLater }) {
-  const scale = useRef(new Animated.Value(0.82)).current;
+  const scale = useRef(new Animated.Value(0.8)).current;
   const fade = useRef(new Animated.Value(0)).current;
-  const pop = useRef(new Animated.Value(0)).current;
-  const soundRef = useRef(null);
+  const logo = useRef(new Animated.Value(0)).current;
+  const pulse = useRef(new Animated.Value(0)).current;
+  const glow = useRef(new Animated.Value(0)).current;
+  useCelebrationSound(visible);
 
   useEffect(() => {
     if (!visible) return undefined;
-    scale.setValue(0.82); fade.setValue(0); pop.setValue(0);
+    scale.setValue(0.8); fade.setValue(0); logo.setValue(0); pulse.setValue(0); glow.setValue(0);
     Animated.parallel([
       Animated.spring(scale, { toValue: 1, friction: 7, tension: 70, useNativeDriver: true }),
-      Animated.timing(fade, { toValue: 1, duration: 260, useNativeDriver: true }),
-      Animated.sequence([Animated.delay(180), Animated.spring(pop, { toValue: 1, friction: 4, tension: 90, useNativeDriver: true })]),
+      Animated.timing(fade, { toValue: 1, duration: 280, useNativeDriver: true }),
+      Animated.sequence([Animated.delay(200), Animated.spring(logo, { toValue: 1, friction: 4, tension: 80, useNativeDriver: true })]),
     ]).start();
-    let dead = false;
-    (async () => {
-      try {
-        await Audio.setAudioModeAsync({ playsInSilentModeIOS: true, shouldDuckAndroid: false, staysActiveInBackground: false });
-        const { sound } = await Audio.Sound.createAsync(require('../../assets/celebration.wav'), { shouldPlay: true, volume: 1.0 });
-        if (dead) { sound.unloadAsync().catch(() => {}); return; }
-        soundRef.current = sound;
-      } catch (_) { /* sound is optional */ }
-    })();
-    return () => { dead = true; soundRef.current?.unloadAsync().catch(() => {}); soundRef.current = null; };
+    const loop = Animated.loop(Animated.sequence([
+      Animated.timing(pulse, { toValue: 1, duration: 900, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+      Animated.timing(pulse, { toValue: 0, duration: 900, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+    ]));
+    const gl = Animated.loop(Animated.sequence([
+      Animated.timing(glow, { toValue: 1, duration: 1300, useNativeDriver: true }),
+      Animated.timing(glow, { toValue: 0, duration: 1300, useNativeDriver: true }),
+    ]));
+    loop.start(); gl.start();
+    return () => { loop.stop(); gl.stop(); };
   }, [visible]);
 
   if (!exam) return null;
   return (
     <Modal visible={visible} transparent animationType="none" statusBarTranslucent onRequestClose={onLater}>
       <Animated.View style={[st.backdrop, { opacity: fade }]}>
-        <Confetti run={visible} />
         <Animated.View style={[st.card, { opacity: fade, transform: [{ scale }] }]}>
-          <LinearGradient colors={[C.primary, '#2B2299']} style={st.top}>
-            <View style={st.spark1}><Icon name="star" size={12} color={C.accent} /></View>
-            <View style={st.spark2}><Icon name="star" size={9} color={C.white} /></View>
-            <View style={st.spark3}><Icon name="star" size={10} color={C.accent} /></View>
-            <Animated.View style={[st.badge, { transform: [{ scale: pop.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }) }, { rotate: pop.interpolate({ inputRange: [0, 1], outputRange: ['-20deg', '0deg'] }) }] }]}>
-              <Icon name="graduation-cap" size={40} color={C.primary} />
+          {/* header */}
+          <LinearGradient colors={['#14104F', C.primary, '#2E25A8']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={st.top}>
+            <View style={[st.bubble, { width: 170, height: 170, left: -50, top: -60 }]} />
+            <View style={[st.bubble, { width: 120, height: 120, right: -30, bottom: -50 }]} />
+            <Animated.View style={[st.halo, { opacity: glow.interpolate({ inputRange: [0, 1], outputRange: [0.25, 0.6] }), transform: [{ scale: glow.interpolate({ inputRange: [0, 1], outputRange: [0.95, 1.12] }) }] }]} />
+            {[['10%', 34, 13, C.accent], ['20%', 100, 9, '#fff'], ['84%', 30, 11, C.accent], ['74%', 96, 8, '#fff']].map(([l, tp, sz, col], i) => (
+              <Animated.View key={i} style={{ position: 'absolute', left: l, top: tp, opacity: glow.interpolate({ inputRange: [0, 1], outputRange: i % 2 ? [1, 0.3] : [0.3, 1] }) }}>
+                <Icon name="star" size={sz} color={col} />
+              </Animated.View>
+            ))}
+            <Animated.View style={[st.logoRing, { transform: [{ scale: logo.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }) }, { rotate: logo.interpolate({ inputRange: [0, 1], outputRange: ['-25deg', '0deg'] }) }] }]}>
+              <Image source={require('../../assets/logo.png')} style={st.logo} resizeMode="contain" />
             </Animated.View>
-            <View style={st.trophy}><Icon name="trophy" size={16} color={C.accent} /></View>
+            <View style={st.chip}><Icon name="trophy" size={11} color={C.primary} /><Text style={st.chipT}>RESULT DECLARED</Text></View>
           </LinearGradient>
 
+          {/* body */}
           <View style={st.body}>
-            <Text style={st.congrats}>🎉 Congratulations!</Text>
+            <Text style={st.congrats}>{'\u{1F389}'} Congratulations!</Text>
             <Text style={st.title}>Your Examination Result Has Been Declared!</Text>
             <Text style={st.text}>You can check your subject-wise marks, overall performance, percentage, and other available result details.</Text>
 
             <View style={st.info}>
-              <View style={st.infoRow}><Text style={st.infoK}>Examination</Text><Text style={st.infoV} numberOfLines={2}>{exam.exam_name}</Text></View>
-              <View style={[st.infoRow, { borderBottomWidth: 0 }]}><Text style={st.infoK}>Class</Text><Text style={st.infoV}>{classNo}</Text></View>
+              <View style={st.infoRow}>
+                <View style={st.infoIc}><Icon name="graduation-cap" size={13} color={C.accent} /></View>
+                <View style={{ flex: 1 }}><Text style={st.infoK}>Examination</Text><Text style={st.infoV} numberOfLines={3}>{exam.exam_name}</Text></View>
+              </View>
+              <View style={[st.infoRow, { borderBottomWidth: 0 }]}>
+                <View style={st.infoIc}><Icon name="users" size={12} color={C.accent} /></View>
+                <View style={{ flex: 1 }}><Text style={st.infoK}>Class</Text><Text style={st.infoV}>Class {classNo}</Text></View>
+              </View>
             </View>
 
-            <Pressable onPress={onView} style={({ pressed }) => [st.primary, pressed && { opacity: 0.88 }]}>
-              <Icon name="chart-simple" size={14} color={C.accent} />
-              <Text style={st.primaryT}>View My Result</Text>
-            </Pressable>
-            <Pressable onPress={onLater} hitSlop={8} style={st.secondary}>
-              <Text style={st.secondaryT}>Maybe Later</Text>
-            </Pressable>
+            <Animated.View style={{ alignSelf: 'stretch', transform: [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.025] }) }] }}>
+              <Pressable onPress={onView} style={({ pressed }) => [st.primary, pressed && { opacity: 0.9 }]}>
+                <Icon name="chart-simple" size={14} color={C.accent} />
+                <Text style={st.primaryT}>View My Result</Text>
+                <Icon name="arrow-right" size={13} color={C.accent} />
+              </Pressable>
+            </Animated.View>
+            <Pressable onPress={onLater} hitSlop={8} style={st.secondary}><Text style={st.secondaryT}>Maybe Later</Text></Pressable>
           </View>
         </Animated.View>
+
+        {/* celebration layers (above the card, never block touches) */}
+        <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+          <Rain run={visible} />
+          <Popper side="left" run={visible} delay={170} />
+          <Popper side="right" run={visible} delay={400} />
+        </View>
       </Animated.View>
     </Modal>
   );
@@ -188,24 +278,26 @@ export default function ResultAnnouncer({ blocked }) {
 }
 
 const st = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(10,6,50,0.72)', alignItems: 'center', justifyContent: 'center', padding: 22 },
-  card: { width: '100%', maxWidth: 380, backgroundColor: C.white, borderRadius: 28, overflow: 'hidden', shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 24, shadowOffset: { width: 0, height: 12 }, elevation: 24 },
-  top: { height: 138, alignItems: 'center', justifyContent: 'center' },
-  badge: { width: 88, height: 88, borderRadius: 44, backgroundColor: C.accent, alignItems: 'center', justifyContent: 'center', borderWidth: 5, borderColor: 'rgba(255,255,255,0.35)' },
-  trophy: { position: 'absolute', right: 74, bottom: 22, width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
-  spark1: { position: 'absolute', left: 52, top: 30 },
-  spark2: { position: 'absolute', left: 90, bottom: 26 },
-  spark3: { position: 'absolute', right: 56, top: 26 },
-  body: { padding: 22, alignItems: 'center' },
-  congrats: { fontFamily: F.b, fontSize: 22, color: C.primary },
-  title: { fontFamily: F.s, fontSize: 15, color: C.primary, textAlign: 'center', marginTop: 6, lineHeight: 21 },
+  backdrop: { flex: 1, backgroundColor: 'rgba(8,5,44,0.78)', alignItems: 'center', justifyContent: 'center', padding: 20 },
+  card: { width: '100%', maxWidth: 390, backgroundColor: C.white, borderRadius: 30, overflow: 'hidden', shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 28, shadowOffset: { width: 0, height: 14 }, elevation: 26 },
+  top: { height: 176, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  bubble: { position: 'absolute', borderRadius: 100, backgroundColor: 'rgba(255,255,255,0.06)' },
+  halo: { position: 'absolute', width: 150, height: 150, borderRadius: 75, backgroundColor: C.accent },
+  logoRing: { width: 112, height: 112, borderRadius: 56, backgroundColor: C.white, borderWidth: 4, borderColor: C.accent, alignItems: 'center', justifyContent: 'center', shadowColor: C.accent, shadowOpacity: 0.7, shadowRadius: 16, elevation: 10 },
+  logo: { width: 98, height: 98 },
+  chip: { position: 'absolute', bottom: 10, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: C.accent, borderRadius: 14, paddingVertical: 4, paddingHorizontal: 12 },
+  chipT: { fontFamily: F.b, fontSize: 9.5, letterSpacing: 1.2, color: C.primary },
+  body: { padding: 22, paddingTop: 18, alignItems: 'center' },
+  congrats: { fontFamily: F.b, fontSize: 24, color: C.primary },
+  title: { fontFamily: F.s, fontSize: 15, color: C.primary, textAlign: 'center', marginTop: 6, lineHeight: 22 },
   text: { fontFamily: F.r, fontSize: 12.5, color: C.grey, textAlign: 'center', marginTop: 10, lineHeight: 19 },
-  info: { alignSelf: 'stretch', backgroundColor: C.bg, borderRadius: 16, paddingHorizontal: 14, marginTop: 16, marginBottom: 18 },
-  infoRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12, paddingVertical: 11, borderBottomWidth: 1, borderColor: C.line },
-  infoK: { fontFamily: F.r, fontSize: 12, color: C.grey },
-  infoV: { flex: 1, textAlign: 'right', fontFamily: F.s, fontSize: 13, color: C.primary },
-  primary: { alignSelf: 'stretch', flexDirection: 'row', gap: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: C.primary, borderRadius: 16, paddingVertical: 14 },
-  primaryT: { fontFamily: F.b, fontSize: 14.5, color: C.white },
-  secondary: { paddingVertical: 14, paddingHorizontal: 20, marginTop: 4 },
+  info: { alignSelf: 'stretch', backgroundColor: C.bg, borderRadius: 18, paddingHorizontal: 14, marginTop: 16, marginBottom: 18, borderWidth: 1, borderColor: C.line },
+  infoRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, borderBottomWidth: 1, borderColor: C.line },
+  infoIc: { width: 30, height: 30, borderRadius: 10, backgroundColor: C.primary, alignItems: 'center', justifyContent: 'center' },
+  infoK: { fontFamily: F.r, fontSize: 11, color: C.grey },
+  infoV: { fontFamily: F.s, fontSize: 13.5, color: C.primary, marginTop: 1 },
+  primary: { alignSelf: 'stretch', flexDirection: 'row', gap: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: C.primary, borderRadius: 18, paddingVertical: 15, shadowColor: C.primary, shadowOpacity: 0.4, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 8 },
+  primaryT: { fontFamily: F.b, fontSize: 15, color: C.white },
+  secondary: { paddingVertical: 14, paddingHorizontal: 22, marginTop: 4 },
   secondaryT: { fontFamily: F.s, fontSize: 13, color: C.grey },
 });

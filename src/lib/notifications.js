@@ -41,7 +41,12 @@ export function NotifProvider({ children }) {
   }, [isStudent, profile?.id]);
 
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
-  useEffect(() => { refresh(); }, [refresh, nav.current.key]);
+  const last = useRef(0);
+  useEffect(() => {
+    if (Date.now() - last.current < 25000) return; // throttle: screen changes should not trigger network calls
+    last.current = Date.now();
+    refresh();
+  }, [refresh, nav.current.key]);
   useEffect(() => {
     const sub = AppState.addEventListener('change', (s) => { if (s === 'active') refresh(); });
     return () => sub.remove();

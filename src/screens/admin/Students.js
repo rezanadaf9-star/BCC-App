@@ -21,7 +21,7 @@ export function Students() {
     const { data, error } = await sb.from('student_profiles').select('*,profiles(full_name,login_id)').order('class_no').order('roll_number');
     if (error) throw error;
     return data || [];
-  }, []);
+  }, [], { key: 'students' });
   return (
     <Page onRefresh={q.reload} refreshing={q.loading && !!q.data}>
       <Head title="Students" sub={isAdmin ? 'Create accounts and view student information.' : 'Review students in your assigned classes.'} right={isAdmin ? <Btn small icon="user-plus" label="Create" onPress={() => setCreating(true)} /> : null} />

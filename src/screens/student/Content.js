@@ -1,6 +1,6 @@
 // Lectures / Notes / Homework (+ NotebookLM) for students
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Image, Linking, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, Alert, Image, InteractionManager, Linking, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { WebView } from 'react-native-webview';
 import { useVideoPlayer, VideoView } from 'expo-video';
@@ -8,7 +8,7 @@ import { Async, Avatar, Btn, Card, Empty, Head, Icon, ListItem, Loading, Page, P
 import DiscussionView from '../../components/Discussion';
 import { useApp, useUi } from '../../lib/app';
 import { sb } from '../../lib/supabase';
-import { downloadAndShare, fmtDate, fmtDateTime, isMissingTable, isToday, signedUrl, timeAgo, todayLabel, useAsync, useDayKey, useRealtimeTables, youtubeId } from '../../lib/helpers';
+import { downloadAndShare, fmtDate, fmtDateTime, isMissingTable, isToday, peekSignedUrl, signedUrl, timeAgo, todayLabel, useAsync, useDayKey, useRealtimeTables, youtubeId } from '../../lib/helpers';
 import { C, F, R } from '../../theme';
 
 
@@ -61,10 +61,15 @@ export function Lectures({ nav }) {
       .order('is_live', { ascending: false }).order('created_at', { ascending: false });
     if (error) throw error;
     return data || [];
-  }, [classNo]);
-  useRealtimeTables(['lectures'], classNo, q.reload);
+  }, [classNo], { key: `lectures:${classNo}` });
+  useRealtimeTables(['lectures'], classNo, q.refresh);
+  const firstYt = (q.data || []).map((r) => youtubeId(r.youtube_url || '')).find(Boolean);
+  useEffect(() => {
+    (q.data || []).slice(0, 20).forEach((r) => { const id = youtubeId(r.youtube_url || ''); if (id) Image.prefetch(`https://i.ytimg.com/vi/${id}/hqdefault.jpg`).catch(() => {}); });
+  }, [q.data]);
   return (
     <Page onRefresh={q.reload} refreshing={q.loading && !!q.data}>
+      {!!firstYt && <YouTubeWarmup id={firstYt} />}
       <Async q={q}>
         {(rows) => {
           const live = rows.filter((x) => x.is_live);
@@ -100,7 +105,7 @@ function LectureRow({ x, nav }) {
       sub={`${x.subjects?.name || 'Subject'} • ${kind} • ${fmtDate(x.created_at)}`}
       left={<View style={[st.play, x.is_live && { backgroundColor: C.alert }]}><Icon name={x.is_live ? 'tower-broadcast' : 'play'} size={14} color={C.white} /></View>}
       right={<View style={{ alignItems: 'flex-end', gap: 4 }}>{x.is_live && <Pill text="LIVE" active />}<Icon name="chevron-right" size={12} color={C.grey} /></View>}
-      onPress={() => nav.push('lecture-player', { lectureId: x.id })}
+      onPress={() => nav.push('lecture-player', { lectureId: x.id, lecture: x })}
     />
   );
 }
@@ -110,8 +115,8 @@ export function LecturesSubject({ params, nav }) {
     const { data, error } = await sb.from('lectures').select('*,subjects(name)').eq('class_no', classNo).eq('subject_id', params.subjectId).order('created_at', { ascending: false });
     if (error) throw error;
     return data || [];
-  }, [params.subjectId]);
-  useRealtimeTables(['lectures'], classNo, q.reload);
+  }, [params.subjectId], { key: `lectures:${classNo}:${params.subjectId}` });
+  useRealtimeTables(['lectures'], classNo, q.refresh);
   return (
     <Page onRefresh={q.reload}>
       <Async q={q}>
@@ -127,8 +132,43 @@ export function LecturesSubject({ params, nav }) {
 }
 
 function FileVideo({ url }) {
-  const player = useVideoPlayer(url, (p) => { p.loop = false; });
-  return <VideoView player={player} style={{ flex: 1 }} contentFit="contain" nativeControls />;
+  const player = useVideoPlayer(url, (p) => { p.loop = false; }); // starts preparing as soon as the page opens
+  const [started, setStarted] = useState(false);
+  return (
+    <View style={{ flex: 1, backgroundColor: '#000' }}>
+      <VideoView player={player} style={{ flex: 1 }} contentFit="contain" nativeControls />
+      {!started && (
+        <Pressable onPress={() => { setStarted(true); player.play(); }} style={st.poster}>
+          <View style={st.posterBtn}><Icon name="play" size={22} color={C.accent} /></View>
+        </Pressable>
+      )}
+    </View>
+  );
+}
+function FilePending() {
+  return <View style={st.poster}><ActivityIndicator color={C.accent} /></View>;
+}
+
+/** Hidden, tiny player that downloads YouTube's player code once, so every lecture afterwards starts from cache. */
+let ytWarmed = false;
+function YouTubeWarmup({ id }) {
+  const [on, setOn] = useState(() => !ytWarmed);
+  useEffect(() => {
+    if (!on || !id) return undefined;
+    ytWarmed = true;
+    const t = setTimeout(() => setOn(false), 15000);
+    return () => clearTimeout(t);
+  }, [on, id]);
+  if (!on || !id) return null;
+  return (
+    <View pointerEvents="none" style={{ position: 'absolute', left: -10, top: -10, width: 2, height: 2, opacity: 0 }}>
+      <WebView
+        originWhitelist={['*']} javaScriptEnabled style={{ width: 2, height: 2 }}
+        onShouldStartLoadWithRequest={(r) => (r.url || '').startsWith('about:') || (r.url || '').startsWith('https://rezanadaf9-star.github.io') || r.isTopFrame === false}
+        source={{ baseUrl: 'https://rezanadaf9-star.github.io/', html: `<html><body style="margin:0"><div id="p"></div><script>function onYouTubeIframeAPIReady(){new YT.Player('p',{width:'200',height:'120',videoId:'${id}',playerVars:{autoplay:0,controls:0,fs:0,rel:0,playsinline:1}})}</script><script src="https://www.youtube.com/iframe_api"></script></body></html>` }}
+      />
+    </View>
+  );
 }
 
 export function LecturePlayer({ params, nav }) {
@@ -138,6 +178,8 @@ export function LecturePlayer({ params, nav }) {
   const [youtubePlaying, setYoutubePlaying] = useState(false);
   const youtubeWebRef = useRef(null);
   const [youtubeReady, setYoutubeReady] = useState(false);
+  const [youtubeStarted, setYoutubeStarted] = useState(false);
+  const [mountWeb, setMountWeb] = useState(false);
   const full = fs; // Custom fullscreen is used only for uploaded files; YouTube uses its own native control
   const q = useAsync(async () => {
     const { data, error } = await sb.from('lectures').select('*,subjects(name)').eq('id', params.lectureId).single();
@@ -169,6 +211,23 @@ export function LecturePlayer({ params, nav }) {
 
   const x = q.data?.x;
   const yt = youtubeId(x?.youtube_url || '');
+  const [fileUrl, setFileUrl] = useState(() => (x?.file_path ? peekSignedUrl(x.file_path) : null));
+  useEffect(() => {
+    if (!x?.file_path) return undefined;
+    let dead = false;
+    signedUrl(x.file_path, 3600).then((u) => { if (!dead && u) setFileUrl(u); });
+    return () => { dead = true; };
+  }, [x?.file_path]);
+  // the page + thumbnail paint first; the heavy WebView is created right after the screen transition
+  useEffect(() => {
+    const h = InteractionManager.runAfterInteractions(() => setMountWeb(true));
+    return () => h.cancel();
+  }, []);
+  useEffect(() => { // safety net: never leave the thumbnail spinner on forever
+    if (!youtubePlaying || youtubeStarted) return undefined;
+    const t = setTimeout(() => setYoutubeStarted(true), 10000);
+    return () => clearTimeout(t);
+  }, [youtubePlaying, youtubeStarted]);
   const playerH = width * 0.5625;
 
   const media = !q.data ? (q.error ? <Empty icon="triangle-exclamation" title="Could not load lecture" text={q.error.message} /> : <Loading />)
@@ -176,7 +235,7 @@ export function LecturePlayer({ params, nav }) {
       yt ? (
         <View style={{ flex: 1, backgroundColor: '#000' }}>
           {/* Keep the SAME player mounted before and after tapping, so playback is not reset. */}
-          <WebView
+          {mountWeb && <WebView
             key={yt}
             ref={youtubeWebRef}
             allowsFullscreenVideo
@@ -187,7 +246,9 @@ export function LecturePlayer({ params, nav }) {
             originWhitelist={['*']}
             onMessage={(event) => {
               const message = event.nativeEvent.data;
-              if (message === 'ready') {
+              if (message === 'playing') {
+                setYoutubeStarted(true);
+              } else if (message === 'ready') {
                 setYoutubeReady(true);
                 if (youtubePlaying) youtubeWebRef.current?.injectJavaScript('playLecture();true;');
               } else if (message === 'yt-fullscreen-enter') {
@@ -203,32 +264,35 @@ export function LecturePlayer({ params, nav }) {
             style={{ flex: 1, backgroundColor: '#000' }}
             source={{
               baseUrl: 'https://rezanadaf9-star.github.io/',
-              html: `<html><head><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"></head><body style="margin:0;background:#000;overflow:hidden"><div id="player" style="position:absolute;inset:0"></div><script>function reportFullscreen(){window.ReactNativeWebView.postMessage(document.fullscreenElement||document.webkitFullscreenElement?'yt-fullscreen-enter':'yt-fullscreen-exit')}document.addEventListener('fullscreenchange',reportFullscreen);document.addEventListener('webkitfullscreenchange',reportFullscreen);var player;function playLecture(){if(player&&player.playVideo)player.playVideo()}function onYouTubeIframeAPIReady(){player=new YT.Player('player',{width:'100%',height:'100%',videoId:'${yt}',playerVars:{autoplay:0,controls:1,fs:1,playsinline:1,rel:0,iv_load_policy:3},events:{onReady:function(){window.ReactNativeWebView.postMessage('ready')}}})}</script><script src="https://www.youtube.com/iframe_api"></script></body></html>`,
+              html: `<html><head><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"></head><body style="margin:0;background:#000;overflow:hidden"><div id="player" style="position:absolute;inset:0"></div><script>function reportFullscreen(){window.ReactNativeWebView.postMessage(document.fullscreenElement||document.webkitFullscreenElement?'yt-fullscreen-enter':'yt-fullscreen-exit')}document.addEventListener('fullscreenchange',reportFullscreen);document.addEventListener('webkitfullscreenchange',reportFullscreen);var player;function playLecture(){if(player&&player.playVideo)player.playVideo()}function onYouTubeIframeAPIReady(){player=new YT.Player('player',{width:'100%',height:'100%',videoId:'${yt}',playerVars:{autoplay:0,controls:1,fs:1,playsinline:1,rel:0,iv_load_policy:3},events:{onReady:function(){window.ReactNativeWebView.postMessage('ready')},onStateChange:function(e){if(e.data===1)window.ReactNativeWebView.postMessage('playing')}}})}</script><script src="https://www.youtube.com/iframe_api"></script></body></html>`,
             }}
-          />
-          {!youtubePlaying && (
+          />}
+          {!youtubeStarted && (
             <Pressable
               onPress={() => {
+                if (youtubePlaying) return;
                 setYoutubePlaying(true);
                 youtubeWebRef.current?.injectJavaScript('playLecture();true;');
               }}
               style={{ ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', backgroundColor: '#000' }}
             >
               <Image source={{ uri: `https://i.ytimg.com/vi/${yt}/hqdefault.jpg` }} resizeMode="cover" style={StyleSheet.absoluteFillObject} />
-              <View style={{ width: 70, height: 48, borderRadius: 14, backgroundColor: '#ff0033', alignItems: 'center', justifyContent: 'center' }}>
-                <Icon name="play" size={24} color="#fff" />
-              </View>
+              {youtubePlaying ? <ActivityIndicator size="large" color="#fff" /> : (
+                <View style={{ width: 70, height: 48, borderRadius: 14, backgroundColor: '#ff0033', alignItems: 'center', justifyContent: 'center' }}>
+                  <Icon name="play" size={24} color="#fff" />
+                </View>
+              )}
             </Pressable>
           )}
         </View>
       ) : <Empty icon="link-slash" title="Invalid YouTube URL" text="The teacher configured an invalid link." />
-    ) : q.data.file ? <FileVideo url={q.data.file} />
+    ) : x.file_path ? (fileUrl ? <FileVideo url={fileUrl} /> : <FilePending />)
       : <Empty icon="video-slash" title="No lecture media" text="No lecture media has been attached yet." />;
 
   const videoBlock = (
     <View style={full ? { flex: 1, backgroundColor: '#000' } : { height: playerH, backgroundColor: '#000', overflow: 'hidden' }}>
       {media}
-      {!!q.data && !!q.data.file && (
+      {!!x && !!x.file_path && !!fileUrl && (
         <Pressable onPress={full ? exitFs : enterFs} hitSlop={8} style={[st.fsBtn, { top: 10 }]}>
           <Icon name={full ? 'compress' : 'expand'} size={14} color={C.white} />
         </Pressable>
@@ -310,8 +374,8 @@ export function Notes({ nav }) {
     const { data, error } = await sb.from('notes').select('*,subjects(name)').eq('class_no', classNo).order('created_at', { ascending: false });
     if (error) throw error;
     return data || [];
-  }, [classNo]);
-  useRealtimeTables(['notes'], classNo, q.reload);
+  }, [classNo], { key: `notes:${classNo}` });
+  useRealtimeTables(['notes'], classNo, q.refresh);
   return (
     <Page onRefresh={q.reload} refreshing={q.loading && !!q.data}>
       <Async q={q}>
@@ -343,8 +407,8 @@ export function NotesSubject({ params }) {
     const { data, error } = await sb.from('notes').select('*,subjects(name)').eq('class_no', classNo).eq('subject_id', params.subjectId).order('created_at', { ascending: false });
     if (error) throw error;
     return data || [];
-  }, [params.subjectId]);
-  useRealtimeTables(['notes'], classNo, q.reload);
+  }, [params.subjectId], { key: `notes:${classNo}:${params.subjectId}` });
+  useRealtimeTables(['notes'], classNo, q.refresh);
   return (
     <Page onRefresh={q.reload}>
       <Async q={q}>
@@ -386,8 +450,8 @@ export function Homework({ nav }) {
     const { data, error } = await sb.from('homework').select('*,subjects(name)').eq('class_no', classNo).order('created_at', { ascending: false });
     if (error) throw error;
     return data || [];
-  }, [classNo]);
-  useRealtimeTables(['homework'], classNo, q.reload);
+  }, [classNo], { key: `homework:${classNo}` });
+  useRealtimeTables(['homework'], classNo, q.refresh);
   return (
     <Page onRefresh={q.reload} refreshing={q.loading && !!q.data}>
       <Async q={q}>
@@ -419,8 +483,8 @@ export function HomeworkSubject({ params }) {
     const { data, error } = await sb.from('homework').select('*,subjects(name)').eq('class_no', classNo).eq('subject_id', params.subjectId).order('created_at', { ascending: false });
     if (error) throw error;
     return data || [];
-  }, [params.subjectId]);
-  useRealtimeTables(['homework'], classNo, q.reload);
+  }, [params.subjectId], { key: `homework:${classNo}:${params.subjectId}` });
+  useRealtimeTables(['homework'], classNo, q.refresh);
   return (
     <Page onRefresh={q.reload}>
       <Async q={q}>
@@ -450,7 +514,7 @@ export function NotebookLM() {
     const { data, error } = await sb.from('notebooklm_resources').select('*,subjects(name)').eq('class_no', classNo).eq('is_active', true).order('created_at', { ascending: false });
     if (error) throw error;
     return data || [];
-  }, [classNo]);
+  }, [classNo], { key: `ai:${classNo}` });
   const open = async (url) => {
     if (!url) return toast('This AI resource has no URL.', 'error');
     try { await Linking.openURL(url); } catch { toast('Could not open the link.', 'error'); }
@@ -489,6 +553,8 @@ export function NotebookLM() {
 }
 
 const st = StyleSheet.create({
+  poster: { ...StyleSheet.absoluteFillObject, backgroundColor: C.primary, alignItems: 'center', justifyContent: 'center' },
+  posterBtn: { width: 64, height: 64, borderRadius: 32, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
   secRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4, marginBottom: 10 },
   secIcon: { width: 24, height: 24, borderRadius: 8, backgroundColor: C.primary, alignItems: 'center', justifyContent: 'center' },
   secTitle: { fontFamily: F.b, fontSize: 16, color: C.primary },

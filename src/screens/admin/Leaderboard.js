@@ -46,7 +46,7 @@ export function AdminLeaderboardClass({ params }) {
       return { s, c: cm.get(s.user_id), latest: h[0], change: l != null && p != null ? l - p : null, count: h.length };
     });
     return { cumRows, latestQuiz, latestRows, monitor, count: students.length };
-  }, [classNo]);
+  }, [classNo], { key: `lbclass:${classNo}` });
 
   return (
     <Page onRefresh={q.reload} refreshing={q.loading && !!q.data}>

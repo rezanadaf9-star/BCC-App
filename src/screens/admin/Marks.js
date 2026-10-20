@@ -21,7 +21,7 @@ export function Marks({ nav }) {
     ]);
     if (ex.error) throw ex.error; if (st.error) throw st.error;
     return { exams: ex.data || [], students: st.data || [] };
-  }, []);
+  }, [], { key: 'marks-home' });
   return (
     <Page onRefresh={q.reload} refreshing={q.loading && !!q.data}>
       <Head title="Marks" sub="School exam marks are entered here. Quiz performance is in Leaderboard." />
@@ -68,7 +68,7 @@ export function MarksClass({ params, nav }) {
     ]);
     if (st.error) throw st.error; if (ex.error) throw ex.error;
     return { students: (st.data || []).sort(byRoll), exams: ex.data || [] };
-  }, [classNo]);
+  }, [classNo], { key: `marksclass:${classNo}` });
 
   const declare = (examId) => Alert.alert('Declare result?', 'Students will be able to see this exam leaderboard after declaration.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Declare', onPress: async () => {
     loading(true, 'Declaring result...');

@@ -27,7 +27,7 @@ export function LectureDiscussions({ nav }) {
       return { ...l, total: cs.length, unanswered };
     }).sort((a, b) => (b.unanswered - a.unanswered) || (new Date(b.created_at) - new Date(a.created_at)));
     return { items, missing };
-  }, [classes.join(',')]);
+  }, [classes.join(',')], { key: `disclist:${classes.join(',')}` });
 
   return (
     <Page onRefresh={q.reload} refreshing={q.loading && !!q.data}>
