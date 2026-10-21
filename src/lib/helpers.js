@@ -301,3 +301,23 @@ export function useRealtimeTables(tables, classNo, onChange) {
     return () => { try { sb.removeChannel(ch); } catch (_) {} };
   }, [classNo, key]);
 }
+
+/* ---------- leaderboard photo fallback ----------
+ * Some SQL versions of get_quiz_leaderboard / get_academic_exam_leaderboard do not return photo_path.
+ * Every row keeps a photo by borrowing it from any other list that has the same student (e.g. the class ranking). */
+export function fillPhotos(rows, ...sources) {
+  const map = new Map();
+  sources.flat().forEach((r) => { if (r && r.student_id && r.photo_url) map.set(r.student_id, r.photo_url); });
+  return (rows || []).map((r) => (r.photo_url || !map.has(r.student_id) ? r : { ...r, photo_url: map.get(r.student_id) }));
+}
+export async function classPhotoSources(classNo) {
+  try {
+    const r = await sb.rpc('get_class_leaderboard', { p_class_no: classNo });
+    return r.error ? [] : await addPhotoUrls(r.data || []);
+  } catch (_) { return []; }
+}
+export async function withPhotoFallback(rows, classNo, extra = []) {
+  let out = fillPhotos(rows, extra);
+  if (out.some((r) => !r.photo_url)) out = fillPhotos(out, await classPhotoSources(classNo));
+  return out;
+}

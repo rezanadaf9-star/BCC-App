@@ -4,7 +4,7 @@ import { Async, Avatar, Btn, Card, Empty, Field, Head, Icon, ListItem, Page, Pil
 import { useApp, useUi } from '../../lib/app';
 import { sb } from '../../lib/supabase';
 import {
-  academicTotals, addPhotoUrls, byRoll, classText, fetchAcademicExamLeaderboard, fmtDate, includedAcademicSubjects, initials, num, rankLabel, subjectsForClass, useAsync,
+  academicTotals, addPhotoUrls, byRoll, classText, withPhotoFallback, fetchAcademicExamLeaderboard, fmtDate, includedAcademicSubjects, initials, num, rankLabel, subjectsForClass, useAsync,
 } from '../../lib/helpers';
 import { C, F, R } from '../../theme';
 import { notify } from '../../lib/notifications';
@@ -67,7 +67,7 @@ export function MarksClass({ params, nav }) {
       sb.from('academic_exam_sets').select(EX).eq('class_no', classNo).order('created_at', { ascending: false }),
     ]);
     if (st.error) throw st.error; if (ex.error) throw ex.error;
-    return { students: (st.data || []).sort(byRoll), exams: ex.data || [] };
+    return { students: (await addPhotoUrls(st.data || [])).sort(byRoll), exams: ex.data || [] };
   }, [classNo], { key: `marksclass:${classNo}` });
 
   const declare = (examId) => Alert.alert('Declare result?', 'Students will be able to see this exam leaderboard after declaration.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Declare', onPress: async () => {
@@ -110,7 +110,7 @@ export function MarksClass({ params, nav }) {
             <SectionTitle>Students ({students.length})</SectionTitle>
             {students.map((s, i) => (
               <ListItem key={s.user_id} title={s.profiles?.full_name || 'Student'} sub={`Roll No. ${s.roll_number || '—'} • ${classText(classNo)}`}
-                left={<Avatar name={s.profiles?.full_name} size={40} />} right={<Icon name="chevron-right" size={12} color={C.grey} />} onPress={() => setOverview(s.user_id)} />
+                left={<Avatar uri={s.photo_url} name={s.profiles?.full_name} size={40} />} right={<Icon name="chevron-right" size={12} color={C.grey} />} onPress={() => setOverview(s.user_id)} />
             ))}
 
             <ExamSetup visible={setup} classNo={classNo} onClose={() => setSetup(false)} onCreated={(examId) => { setSetup(false); q.reload(); setEntry({ examId }); }} />
@@ -165,11 +165,11 @@ function MarksEntry({ entry, classNo, onClose }) {
     if (!entry) return null;
     const [ex, st, rec] = await Promise.all([
       sb.from('academic_exam_sets').select(EX).eq('id', entry.examId).single(),
-      sb.from('student_profiles').select('user_id,class_no,roll_number,profiles(full_name,login_id)').eq('class_no', classNo),
+      sb.from('student_profiles').select('user_id,class_no,roll_number,photo_path,profiles(full_name,login_id)').eq('class_no', classNo),
       sb.from('student_exam_marks').select('student_id,status,included_subject_ids').eq('exam_id', entry.examId),
     ]);
     if (ex.error) throw ex.error; if (st.error) throw st.error; if (rec.error) throw rec.error;
-    const list = (st.data || []).sort(byRoll);
+    const list = (await addPhotoUrls(st.data || [])).sort(byRoll);
     const map = new Map((rec.data || []).map((r) => [r.student_id, r]));
     let i = entry.studentId ? list.findIndex((s) => s.user_id === entry.studentId) : list.findIndex((s) => map.get(s.user_id)?.status !== 'completed');
     if (i < 0) i = 0;
@@ -237,7 +237,7 @@ function MarksEntry({ entry, classNo, onClose }) {
         {() => student ? (
           <>
             <View style={st.meta}>
-              <Avatar name={student.profiles?.full_name} size={46} />
+              <Avatar uri={student.photo_url} name={student.profiles?.full_name} size={46} />
               <View style={{ flex: 1 }}>
                 <Text style={st.t}>{student.profiles?.full_name}</Text>
                 <Label>Roll No. {student.roll_number || '—'} • Student {index + 1} of {data.data.list.length}</Label>
@@ -356,7 +356,7 @@ export function AcademicLeaderboardExam({ params }) {
     const { data: exam, error } = await sb.from('academic_exam_sets').select(EX).eq('id', params.examId).eq('class_no', classNo).single();
     if (error) throw error;
     if (!exam.result_declared) throw new Error('This result has not been declared yet.');
-    return { exam, rows: await fetchAcademicExamLeaderboard(params.examId) };
+    return { exam, rows: await withPhotoFallback(await fetchAcademicExamLeaderboard(params.examId), classNo) };
   }, [params.examId]);
   return (
     <Page onRefresh={q.reload}>

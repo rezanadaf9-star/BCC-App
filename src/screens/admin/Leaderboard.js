@@ -3,7 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Async, Avatar, Card, Empty, Head, Icon, ListItem, Page, Pill, Podium, RankList, SectionTitle, Stat, Label } from '../../components/ui';
 import { sb } from '../../lib/supabase';
 import { useApp } from '../../lib/app';
-import { addPhotoUrls, byRoll, fetchLatestClassQuiz, num, rankLabel, useAsync } from '../../lib/helpers';
+import { addPhotoUrls, byRoll, fetchLatestClassQuiz, fillPhotos, num, rankLabel, useAsync } from '../../lib/helpers';
 import { C, F } from '../../theme';
 
 export function AdminLeaderboard({ nav }) {
@@ -32,6 +32,7 @@ export function AdminLeaderboardClass({ params }) {
     const cumRows = await addPhotoUrls(cum.data || []);
     let latestRows = [];
     if (latestQuiz) { const r = await sb.rpc('get_quiz_leaderboard', { p_quiz_id: latestQuiz.id }); if (r.error) throw r.error; latestRows = await addPhotoUrls(r.data || []); }
+    latestRows = fillPhotos(latestRows, cumRows);
     const students = (await addPhotoUrls(stu.data || [])).sort(byRoll);
     const ids = (quizzes.data || []).map((x) => x.id);
     let attempts = [];

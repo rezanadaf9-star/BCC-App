@@ -4,7 +4,7 @@ import { Async, Card, Empty, Head, Icon, ListItem, Page, Pill, Podium, RankList,
 import { useApp, useUi } from '../../lib/app';
 import { sb } from '../../lib/supabase';
 import {
-  academicTotals, addPhotoUrls, classText, fetchAcademicExamLeaderboard, fetchLatestClassQuiz, fmtDate, num, rankLabel, useAsync,
+  academicTotals, addPhotoUrls, classText, fillPhotos, studentPhotoUrl, withPhotoFallback, fetchAcademicExamLeaderboard, fetchLatestClassQuiz, fmtDate, num, rankLabel, useAsync,
 } from '../../lib/helpers';
 import { C, F, R } from '../../theme';
 
@@ -12,7 +12,7 @@ const EXAM_SEL = 'id,class_no,exam_name,created_at,result_declared,academic_exam
 
 /* ----------------------------- Academic marks (school exams) ----------------------------- */
 export function StudentMarks({ nav, params }) {
-  const { classNo, profile } = useApp();
+  const { classNo, profile, student } = useApp();
   const { toast } = useUi();
   const [detail, setDetail] = useState(null);
   const q = useAsync(async () => {
@@ -22,7 +22,10 @@ export function StudentMarks({ nav, params }) {
     const declared = exams.filter((e) => e.result_declared);
     const latest = declared[0] || null;
     let rows = [];
-    if (latest) rows = await fetchAcademicExamLeaderboard(latest.id);
+    if (latest) {
+      const own = [{ student_id: profile.id, photo_url: await studentPhotoUrl(student?.photo_path) }];
+      rows = await withPhotoFallback(await fetchAcademicExamLeaderboard(latest.id), classNo, own);
+    }
     return { exams, declared, latest, rows, me: rows.find((r) => r.student_id === profile.id) || null };
   }, [classNo], { key: `marks:${classNo}` });
 
@@ -118,12 +121,13 @@ export function StudentMarks({ nav, params }) {
 }
 
 export function StudentAcademicLeaderboard({ params, nav }) {
-  const { classNo, profile } = useApp();
+  const { classNo, profile, student } = useApp();
   const q = useAsync(async () => {
     const { data: exam, error } = await sb.from('academic_exam_sets').select(EXAM_SEL).eq('id', params.examId).eq('class_no', classNo).single();
     if (error) throw error;
     if (!exam.result_declared) throw new Error('This result has not been declared yet.');
-    return { exam, rows: await fetchAcademicExamLeaderboard(params.examId) };
+    const own = [{ student_id: profile.id, photo_url: await studentPhotoUrl(student?.photo_path) }];
+    return { exam, rows: await withPhotoFallback(await fetchAcademicExamLeaderboard(params.examId), classNo, own) };
   }, [params.examId], { key: `examlb:${params.examId}` });
   return (
     <Page onRefresh={q.reload}>
@@ -152,7 +156,7 @@ export function StudentAcademicLeaderboard({ params, nav }) {
 
 /* ----------------------------- Quiz leaderboard ----------------------------- */
 export function StudentLeaderboard() {
-  const { classNo, profile } = useApp();
+  const { classNo, profile, student } = useApp();
   const q = useAsync(async () => {
     const [cum, hist, latestQuiz, size] = await Promise.all([
       sb.rpc('get_class_leaderboard', { p_class_no: classNo }),
@@ -168,7 +172,9 @@ export function StudentLeaderboard() {
       if (r.error) throw r.error;
       latestRows = await addPhotoUrls(r.data || []);
     }
-    const cumRows = await addPhotoUrls(cum.data || []);
+    const own = [{ student_id: profile.id, photo_url: await studentPhotoUrl(student?.photo_path) }];
+    const cumRows = fillPhotos(await addPhotoUrls(cum.data || []), own);
+    latestRows = fillPhotos(latestRows, cumRows, own); // the quiz ranking may not carry photo_path: borrow it from the class ranking
     return { cumRows, hist: hist.data || [], latestQuiz, latestRows, size: size.count ?? cumRows.length };
   }, [classNo], { key: `lb:${classNo}` });
 
@@ -204,7 +210,7 @@ export function StudentLeaderboard() {
               <Card>
                 <Pill text="CUMULATIVE" />
                 <Text style={st.h2}>{classText(classNo)} overall ranking</Text>
-                <Label>Cumulative percentage across all submitted quizzes • {size} students</Label>
+                <Label>Cumulative percentage across all submitted quizzes • {size} student{size === 1 ? '' : 's'}</Label>
                 {cumRows.length ? <><Podium rows={cumRows} currentId={profile.id} /><RankList rows={cumRows} currentId={profile.id} /></> : <Empty icon="ranking-star" title="No overall ranking yet" />}
               </Card>
               <Card>

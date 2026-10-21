@@ -20,7 +20,7 @@ export function Students() {
   const q = useAsync(async () => {
     const { data, error } = await sb.from('student_profiles').select('*,profiles(full_name,login_id)').order('class_no').order('roll_number');
     if (error) throw error;
-    return data || [];
+    return addPhotoUrls(data || []);
   }, [], { key: 'students' });
   return (
     <Page onRefresh={q.reload} refreshing={q.loading && !!q.data}>
@@ -37,7 +37,7 @@ export function Students() {
           const list = rows.filter((x) => filter === 'all' || String(x.class_no) === filter);
           return list.length ? list.map((x) => (
             <ListItem key={x.id} title={x.profiles?.full_name || 'Student'} sub={`${x.profiles?.login_id || ''} • Class ${x.class_no} • Roll ${x.roll_number || '—'} • Batch ${x.batch}`}
-              left={<Avatar name={x.profiles?.full_name} size={42} />} right={<Icon name="chevron-right" size={12} color={C.grey} />} onPress={() => setViewId(x.id)} />
+              left={<Avatar uri={x.photo_url} name={x.profiles?.full_name} size={42} />} right={<Icon name="chevron-right" size={12} color={C.grey} />} onPress={() => setViewId(x.id)} />
           )) : <Empty icon="users" title="No students yet" />;
         }}
       </Async>
