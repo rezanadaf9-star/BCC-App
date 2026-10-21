@@ -8,7 +8,7 @@ import { Async, Avatar, Btn, Card, Empty, Head, Icon, ListItem, Loading, Page, P
 import DiscussionView from '../../components/Discussion';
 import { useApp, useUi } from '../../lib/app';
 import { sb } from '../../lib/supabase';
-import { downloadAndShare, fmtDate, fmtDateTime, isMissingTable, isToday, peekSignedUrl, signedUrl, timeAgo, todayLabel, useAsync, useDayKey, useRealtimeTables, youtubeId } from '../../lib/helpers';
+import { downloadAndShare, isExternalUrl, parseExternalLink, fmtDate, fmtDateTime, isMissingTable, isToday, peekSignedUrl, signedUrl, timeAgo, todayLabel, useAsync, useDayKey, useRealtimeTables, youtubeId } from '../../lib/helpers';
 import { C, F, R } from '../../theme';
 
 
@@ -339,14 +339,21 @@ export function FileViewer({ visible, onClose, title, path, type }) {
     signedUrl(path, 3600).then((u) => (u ? setUrl(u) : setFailed(true)));
   }, [visible, path]);
   const ext = (type || (path || '').split('.').pop() || '').toLowerCase();
-  const isPdf = ext.includes('pdf');
+  const ext_ = isExternalUrl(path) ? parseExternalLink(path) : null;
+  const isPdf = ext_ ? (ext_.kind === 'direct' && (/pdf/i.test(type || '') || /\.pdf($|\?)/i.test(ext_.url))) : ext.includes('pdf');
   return (
     <Sheet visible={visible} onClose={onClose} title={title || 'File'}
-      footer={<><Btn small kind="ghost" icon="arrow-up-right-from-square" label="Open outside" disabled={!url} onPress={() => Linking.openURL(url)} />
+      footer={<><Btn small kind="ghost" icon="arrow-up-right-from-square" label="Open outside" disabled={!url} onPress={() => Linking.openURL(ext_ ? ext_.open : url)} />
         <Btn small icon="download" label="Download" onPress={() => downloadAndShare(path, title).catch((e) => toast(e.message, 'error'))} /></>}>
-      {failed ? <Empty icon="file-circle-xmark" title="Could not open file" /> : !url ? <Loading /> : isPdf ? (
+      {failed ? <Empty icon="file-circle-xmark" title="Could not open file" /> : !url ? <Loading /> : ext_ && ext_.kind === 'embed' ? (
         <View style={{ height: 520, borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: C.line }}>
-          <WebView source={{ uri: `https://docs.google.com/gview?embedded=1&url=${encodeURIComponent(url)}` }} startInLoadingState
+          <WebView source={{ uri: ext_.view }} startInLoadingState renderLoading={() => <Loading text="Loading file…" />} javaScriptEnabled />
+        </View>
+      ) : ext_ && ext_.kind === 'other' ? (
+        <Empty icon="up-right-from-square" title="This file opens in your browser" text="Tap “Open outside” below." />
+      ) : isPdf ? (
+        <View style={{ height: 520, borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: C.line }}>
+          <WebView source={{ uri: `https://docs.google.com/gview?embedded=1&url=${encodeURIComponent(ext_ ? ext_.view : url)}` }} startInLoadingState
             renderLoading={() => <Loading text="Loading PDF…" />} javaScriptEnabled />
         </View>
       ) : (

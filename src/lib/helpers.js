@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState } from 'react-native';
+import { AppState, Linking } from 'react-native';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { decode } from 'base64-arraybuffer';
@@ -71,8 +71,50 @@ export async function studentPhotoUrl(path) {
     return '';
   }
 }
+/** Notes/homework can be stored as an external link (Google Drive, OneDrive, Dropbox...) instead of a Supabase file path. */
+export const isExternalUrl = (p) => /^https?:\/\//i.test(String(p || '').trim());
+export function parseExternalLink(raw) {
+  const url = String(raw || '').trim();
+  let u;
+  try { u = new URL(url); } catch (_) { return null; }
+  if (!/^https?:$/.test(u.protocol)) return null;
+  const host = u.hostname.toLowerCase();
+  const out = { kind: 'other', url, view: null, download: url, open: url };
+  if (host === 'drive.google.com') {
+    const m = u.pathname.match(/\/file\/d\/([\w-]{10,})/);
+    const id = m ? m[1] : u.searchParams.get('id');
+    if (id) {
+      out.kind = 'embed';
+      out.view = `https://drive.google.com/file/d/${id}/preview`;
+      out.download = `https://drive.google.com/uc?export=download&id=${id}`;
+      out.open = `https://drive.google.com/file/d/${id}/view`;
+    }
+  } else if (host === 'docs.google.com') {
+    const m = u.pathname.match(/^\/(document|presentation|spreadsheets)\/d\/([\w-]{10,})/);
+    if (m) {
+      out.kind = 'embed';
+      out.view = `https://docs.google.com/${m[1]}/d/${m[2]}/preview`;
+      out.download = `https://docs.google.com/${m[1]}/d/${m[2]}/export?format=${m[1] === 'spreadsheets' ? 'xlsx' : 'pdf'}`;
+      out.open = `https://docs.google.com/${m[1]}/d/${m[2]}/view`;
+    }
+  } else if (host === 'onedrive.live.com' && u.pathname.toLowerCase().startsWith('/embed')) {
+    out.kind = 'embed';
+    out.view = url;
+  } else if (host.endsWith('dropbox.com')) {
+    u.searchParams.delete('dl');
+    u.searchParams.set('raw', '1');
+    out.kind = 'direct';
+    out.view = u.toString();
+    out.download = u.toString();
+  } else if (/\.(jpe?g|png|webp|gif|pdf)$/i.test(u.pathname)) {
+    out.kind = 'direct';
+    out.view = url;
+  }
+  return out;
+}
 export async function signedUrl(path, seconds = 3600) {
   if (!path) return null;
+  if (isExternalUrl(path)) return String(path).trim();
   const hit = cachedUrl(`c:${path}`);
   if (hit && seconds >= 3600) return hit;
   const { data, error } = await sb.storage.from('bcc-content').createSignedUrl(path, seconds);
@@ -120,6 +162,12 @@ export async function uploadLocalFile(bucket, path, uri, contentType, upsert = f
 
 /** Download a stored content file and open the share/save sheet. */
 export async function downloadAndShare(path, name) {
+  if (isExternalUrl(path)) {
+    const i = parseExternalLink(path);
+    if (!i) throw new Error('This link is not valid.');
+    await Linking.openURL(i.download);
+    return null;
+  }
   const url = await signedUrl(path, 300);
   if (!url) throw new Error('Could not create download link. Check BCC storage access.');
   const ext = (path.split('.').pop() || '').split('?')[0];
